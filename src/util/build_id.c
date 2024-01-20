@@ -79,7 +79,7 @@ build_id_find_nhdr_callback(struct dl_phdr_info *info, size_t size, void *data_)
                                             info->dlpi_phdr[i].p_vaddr);
       ptrdiff_t len = info->dlpi_phdr[i].p_filesz;
 
-      while (len >= sizeof(struct build_id_note)) {
+      while (len >= (int)(sizeof(struct build_id_note))) {
          if (note->nhdr.n_type == NT_GNU_BUILD_ID &&
             note->nhdr.n_descsz != 0 &&
             note->nhdr.n_namesz == 4 &&
@@ -91,12 +91,12 @@ build_id_find_nhdr_callback(struct dl_phdr_info *info, size_t size, void *data_)
          size_t offset = sizeof(ElfW(Nhdr)) +
                          ALIGN_POT(note->nhdr.n_namesz, 4) +
                          ALIGN_POT(note->nhdr.n_descsz, 4);
-         note = (struct build_id_note *)((char *)note + offset);
          // 05 00 00 00 04 00 00 00 4f 48 4f 53 00 01 00 00 00 00 00 00
-         if (note->nhdr.n_type == 0x534f484f && note > 20) {
+         if (note->nhdr.n_type == 0x534f484f && len > 20) {
             // .note.ohos.ident is not a valid PT_NOTE section, use offset in section header later
             offset = 20;
          }
+         note = (struct build_id_note *)((char *)note + offset);
          len -= offset;
       }
    }

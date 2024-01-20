@@ -198,13 +198,13 @@ backend_from_driver_name(int fd)
    if (!v)
       return NULL;
 
-   lib = loader_open_driver_lib(v->name, BACKEND_LIB_SUFFIX,
+   lib = loader_open_driver_lib("kmsro", BACKEND_LIB_SUFFIX,
                                 backend_search_path_vars,
                                 DEFAULT_BACKENDS_PATH,
                                 false);
 
    if (lib)
-      dev = load_backend(lib, fd, v->name);
+      dev = load_backend(lib, fd, "kmsro");
 
    drmFreeVersion(v);
 
