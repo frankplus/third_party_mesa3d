@@ -1764,7 +1764,7 @@ _eglCreateImageCommon(_EGLDisplay *disp, EGLContext ctx, EGLenum target,
    RETURN_EGL_EVAL(disp, ret);
 }
 
-static EGLImage EGLAPIENTRY
+EGLAPI EGLImage EGLAPIENTRY
 eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
                   EGLClientBuffer buffer, const EGLint *attr_list)
 {
@@ -1820,7 +1820,7 @@ eglDestroyImage(EGLDisplay dpy, EGLImage image)
    return _eglDestroyImageCommon(disp, img);
 }
 
-static EGLBoolean EGLAPIENTRY
+EGLAPI EGLBoolean EGLAPIENTRY
 eglDestroyImageKHR(EGLDisplay dpy, EGLImage image)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -1896,7 +1896,7 @@ _eglCreateSync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list,
 }
 
 
-static EGLSync EGLAPIENTRY
+EGLAPI EGLSync EGLAPIENTRY
 eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint *int_list)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -1970,7 +1970,7 @@ eglDestroySync(EGLDisplay dpy, EGLSync sync)
    return _eglDestroySync(disp, s);
 }
 
-static EGLBoolean EGLAPIENTRY
+EGLAPI EGLBoolean EGLAPIENTRY
 eglDestroySyncKHR(EGLDisplay dpy, EGLSync sync)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -2024,7 +2024,7 @@ eglClientWaitSync(EGLDisplay dpy, EGLSync sync,
    return _eglClientWaitSyncCommon(disp, dpy, s, flags, timeout);
 }
 
-static EGLint EGLAPIENTRY
+EGLAPI EGLint EGLAPIENTRY
 eglClientWaitSyncKHR(EGLDisplay dpy, EGLSync sync,
                      EGLint flags, EGLTime timeout)
 {
@@ -2059,7 +2059,7 @@ _eglWaitSyncCommon(_EGLDisplay *disp, _EGLSync *s, EGLint flags)
    RETURN_EGL_EVAL(disp, ret);
 }
 
-static EGLint EGLAPIENTRY
+EGLAPI EGLint EGLAPIENTRY
 eglWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -2129,7 +2129,7 @@ eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLAttrib *valu
 }
 
 
-static EGLBoolean EGLAPIENTRY
+EGLAPI EGLBoolean EGLAPIENTRY
 eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLint *value)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);

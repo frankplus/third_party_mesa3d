@@ -108,7 +108,7 @@
 #elif defined (__SYMBIAN32__)
 #   define KHRONOS_APICALL IMPORT_C
 #elif (defined(__GNUC__) && (__GNUC__ * 100 + __GNUC_MINOR__) >= 303) \
-       || (defined(__SUNPRO_C) && (__SUNPRO_C >= 0x590))
+       || (defined(__SUNPRO_C) && (__SUNPRO_C >= 0x590)) || (defined(HAVE_OHOS_PLATFORM))
 /* KHRONOS_APIATTRIBUTES is not used by the client API headers yet */
 #   define KHRONOS_APICALL __attribute__((visibility("default")))
 #else
