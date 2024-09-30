@@ -2085,7 +2085,7 @@ typedef void* GLeglImageOES;
 
 #ifndef GL_OES_EGL_image
 #define GL_OES_EGL_image 1
-#ifdef GL_GLEXT_PROTOTYPES
+#if defined(GL_GLEXT_PROTOTYPES) || defined(HAVE_OHOS_PLATFORM)
 GLAPI void APIENTRY glEGLImageTargetTexture2DOES (GLenum target, GLeglImageOES image);
 GLAPI void APIENTRY glEGLImageTargetRenderbufferStorageOES (GLenum target, GLeglImageOES image);
 #endif

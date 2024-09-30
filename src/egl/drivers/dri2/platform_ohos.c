@@ -1293,3 +1293,5 @@ cleanup:
     dri2_display_destroy(disp);
     return _eglError(EGL_NOT_INITIALIZED, err);
 }
+
+GLAPI void APIENTRY glEGLImageTargetTexture2DOES (GLenum target, GLeglImageOES image){}
