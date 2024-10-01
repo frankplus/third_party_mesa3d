@@ -2156,7 +2156,7 @@ eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute, EGLint *valu
    return result;
 }
 
-static EGLint EGLAPIENTRY
+EGLAPI EGLint EGLAPIENTRY
 eglDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
