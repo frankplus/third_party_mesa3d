@@ -104,7 +104,7 @@ static int get_fourcc(int native)
         case PIXEL_FMT_RGBX_8888:
             return DRM_FORMAT_XBGR8888;
         default:
-            _eglLog(_EGL_WARNING, "unsupported native buffer format 0x%{public}x", native);
+            DISPLAY_LOGW("unsupported native buffer format 0x%{public}x", native);
     }
     return -1;
 }
@@ -202,10 +202,23 @@ ohos_create_image_from_native_buffer(_EGLDisplay *disp,
      * buffer can be imported without modifier info as a last resort.
      */
 
+    DISPLAY_LOGD("Entering ohos_create_image_from_native_buffer");
+
     if (!native_window_buffer_get_buffer_info(dri2_dpy, buf, &buf_info)) {
+        DISPLAY_LOGD("Buffer info retrieved successfully");
+        BufferHandle *bufferHandle = GetBufferHandleFromNative(buf);
+        DISPLAY_LOGD("Buffer handle ID: %d, DRM format: 0x%x", bufferHandle->fd, buf_info.drm_fourcc);
         img = ohos_create_image_from_buffer_info(dri2_dpy, &buf_info, priv);
+        if (img) {
+            DISPLAY_LOGD("Image created successfully from buffer info");
+        } else {
+            DISPLAY_LOGW("Failed to create image from buffer info");
+        }
+    } else {
+        DISPLAY_LOGW("Failed to retrieve buffer info");
     }
 
+    DISPLAY_LOGD("Exiting ohos_create_image_from_native_buffer");
     return img;
 }
 
@@ -298,7 +311,12 @@ ohos_window_enqueue_buffer(_EGLDisplay *disp, struct dri2_egl_surface *dri2_surf
      */
     int fence_fd = dri2_surf->out_fence_fd;
     dri2_surf->out_fence_fd = -1;
-    ANativeWindow_queueBuffer(dri2_surf->window, dri2_surf->buffer, fence_fd);
+
+    if (ANativeWindow_queueBuffer(dri2_surf->window, dri2_surf->buffer, fence_fd) == 0) {
+        DISPLAY_LOGD("ANativeWindow_queueBuffer succeeded");
+    } else {
+        DISPLAY_LOGW("ANativeWindow_queueBuffer failed");
+    }
 
     dri2_surf->buffer = NULL;
     dri2_surf->back = NULL;
@@ -324,7 +342,7 @@ ohos_window_cancel_buffer(struct dri2_egl_surface *dri2_surf)
                                      fence_fd);
     dri2_surf->buffer = NULL;
     if (ret < 0) {
-        _eglLog(_EGL_WARNING, "ANativeWindow_cancelBuffer failed");
+        DISPLAY_LOGW("ANativeWindow_cancelBuffer failed");
         dri2_surf->base.Lost = EGL_TRUE;
     }
 }
@@ -372,7 +390,7 @@ ohos_create_surface(_EGLDisplay *disp, EGLint type, _EGLConfig *conf,
         dri2_surf->color_buffers_count = buffer_count;
 
         if (format != dri2_conf->base.NativeVisualID) {
-            _eglLog(_EGL_WARNING, "Native format mismatch: 0x%{public}x != 0x%{public}x",
+            DISPLAY_LOGW("Native format mismatch: 0x%{public}x != 0x%{public}x",
                     format, dri2_conf->base.NativeVisualID);
         }
 
@@ -439,13 +457,13 @@ ohos_destroy_surface(_EGLDisplay *disp, _EGLSurface *surf)
     }
 
     if (dri2_surf->dri_image_back) {
-        _eglLog(_EGL_DEBUG, "%{public}s : %{public}d : destroy dri_image_back", __func__, __LINE__);
+        DISPLAY_LOGD("%{public}s : %{public}d : destroy dri_image_back", __func__, __LINE__);
         dri2_dpy->image->destroyImage(dri2_surf->dri_image_back);
         dri2_surf->dri_image_back = NULL;
     }
 
     if (dri2_surf->dri_image_front) {
-        _eglLog(_EGL_DEBUG, "%{public}s : %{public}d : destroy dri_image_front", __func__, __LINE__);
+        DISPLAY_LOGD("%{public}s : %{public}d : destroy dri_image_front", __func__, __LINE__);
         dri2_dpy->image->destroyImage(dri2_surf->dri_image_front);
         dri2_surf->dri_image_front = NULL;
     }
@@ -463,6 +481,7 @@ static int
 update_buffers(struct dri2_egl_surface *dri2_surf)
 {
     if (dri2_surf->base.Lost) {
+        DISPLAY_LOGW("Surface is lost, cannot update buffers");
         return -1;
     }
 
@@ -472,7 +491,7 @@ update_buffers(struct dri2_egl_surface *dri2_surf)
 
     /* try to dequeue the next back buffer */
     if (!dri2_surf->buffer && !ohos_window_dequeue_buffer(dri2_surf)) {
-        _eglLog(_EGL_WARNING, "Could not dequeue buffer from native window");
+        DISPLAY_LOGW("Could not dequeue buffer from native window");
         dri2_surf->base.Lost = EGL_TRUE;
         return -1;
     }
@@ -504,7 +523,7 @@ get_front_bo(struct dri2_egl_surface *dri2_surf, unsigned int format)
          * and mesa doesn't have the implementation of this case.
          * Add warning message, but not treat it as error.
          */
-        _eglLog(_EGL_DEBUG, "DRI driver requested unsupported front buffer for window surface");
+        DISPLAY_LOGD("DRI driver requested unsupported front buffer for window surface");
     } else if (dri2_surf->base.Type == EGL_PBUFFER_BIT) {
         dri2_surf->dri_image_front =
             dri2_dpy->image->createImage(dri2_dpy->dri_screen,
@@ -514,7 +533,7 @@ get_front_bo(struct dri2_egl_surface *dri2_surf, unsigned int format)
                                          0,
                                          NULL);
         if (!dri2_surf->dri_image_front) {
-            _eglLog(_EGL_WARNING, "dri2_image_front allocation failed");
+            DISPLAY_LOGW("dri2_image_front allocation failed");
             return -1;
         }
     }
@@ -533,14 +552,14 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
 
     if (dri2_surf->base.Type == EGL_WINDOW_BIT) {
         if (!dri2_surf->buffer) {
-            _eglLog(_EGL_WARNING, "Could not get native buffer");
+            DISPLAY_LOGW("Could not get native buffer");
             return -1;
         }
 
         dri2_surf->dri_image_back =
             ohos_create_image_from_native_buffer(disp, dri2_surf->buffer, NULL);
         if (!dri2_surf->dri_image_back) {
-            _eglLog(_EGL_WARNING, "failed to create DRI image from FD");
+            DISPLAY_LOGW("failed to create DRI image from FD");
             return -1;
         }
     } else if (dri2_surf->base.Type == EGL_PBUFFER_BIT) {
@@ -557,7 +576,7 @@ get_back_bo(struct dri2_egl_surface *dri2_surf)
          * behavior instead of trying to fix (and hence potentially breaking) the
          * world.
          */
-        _eglLog(_EGL_DEBUG, "DRI driver requested unsupported back buffer for pbuffer surface");
+        DISPLAY_LOGD("DRI driver requested unsupported back buffer for pbuffer surface");
     }
 
     return 0;
@@ -647,6 +666,8 @@ ohos_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
     struct dri2_egl_surface *dri2_surf = dri2_egl_surface(draw);
     const bool has_mutable_rb = _eglSurfaceHasMutableRenderBuffer(draw);
 
+    DISPLAY_LOGD("Entering ohos_swap_buffers");
+
     /* From the EGL_KHR_mutable_render_buffer spec (v12):
      *
      *    If surface is a single-buffered window, pixmap, or pbuffer surface
@@ -656,7 +677,8 @@ ohos_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
     if (has_mutable_rb &&
         draw->RequestedRenderBuffer == EGL_SINGLE_BUFFER &&
         draw->ActiveRenderBuffer == EGL_SINGLE_BUFFER) {
-        _eglLog(_EGL_DEBUG, "%{public}s: remain in shared buffer mode", __func__);
+        DISPLAY_LOGD("%{public}s: remain in shared buffer mode", __func__);
+        DISPLAY_LOGD("Exiting ohos_swap_buffers");
         return EGL_TRUE;
     }
 
@@ -675,18 +697,22 @@ ohos_swap_buffers(_EGLDisplay *disp, _EGLSurface *draw)
 
     dri2_flush_drawable_for_swapbuffers(disp, draw);
 
-    /* dri2_surf->buffer can be null even when no error has occured. For
+    /* dri2_surf->buffer can be null even when no error has occurred. For
      * example, if the user has called no GL rendering commands since the
      * previous eglSwapBuffers, then the driver may have not triggered
      * a callback to ANativeWindow_dequeueBuffer, in which case
      * dri2_surf->buffer remains null.
      */
     if (dri2_surf->buffer) {
+        DISPLAY_LOGD("Enqueuing buffer");
         ohos_window_enqueue_buffer(disp, dri2_surf);
+    } else {
+        DISPLAY_LOGW("No buffer to enqueue");
     }
 
     dri2_dpy->flush->invalidate(dri2_surf->dri_drawable);
 
+    DISPLAY_LOGD("Exiting ohos_swap_buffers");
     return EGL_TRUE;
 }
 
@@ -908,7 +934,7 @@ ohos_add_configs_for_visuals(_EGLDisplay *disp)
 
     for (int i = 0; i < ARRAY_SIZE(format_count); i++) {
         if (!format_count[i]) {
-            _eglLog(_EGL_DEBUG, "No DRI config supports native format 0x%{public}x",
+            DISPLAY_LOGD("No DRI config supports native format 0x%{public}x",
                     visuals[i].format);
         }
     }
@@ -947,7 +973,7 @@ ohos_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
     struct ANativeWindowBuffer *old_buffer UNUSED = dri2_surf->buffer;
 
     if (!_eglSurfaceInSharedBufferMode(&dri2_surf->base)) {
-        _eglLog(_EGL_WARNING, "%{public}s: internal error: buffer is not shared",
+        DISPLAY_LOGW("%{public}s: internal error: buffer is not shared",
                 __func__);
         return;
     }
@@ -967,7 +993,7 @@ ohos_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
 
     if (ANativeWindow_queueBuffer(dri2_surf->window, dri2_surf->buffer,
                                   fence_fd)) {
-        _eglLog(_EGL_WARNING, "%{public}s: ANativeWindow_queueBuffer failed", __func__);
+        DISPLAY_LOGW("%{public}s: ANativeWindow_queueBuffer failed", __func__);
         close(fence_fd);
         return;
     }
@@ -980,7 +1006,7 @@ ohos_display_shared_buffer(__DRIdrawable *driDrawable, int fence_fd,
         struct dri2_egl_display *dri2_dpy =
             dri2_egl_display(dri2_surf->base.Resource.Display);
 
-        _eglLog(_EGL_WARNING, "%{public}s: ANativeWindow_dequeueBuffer failed", __func__);
+        DISPLAY_LOGW("%{public}s: ANativeWindow_dequeueBuffer failed", __func__);
 
         dri2_surf->base.Lost = true;
         dri2_surf->buffer = NULL;
@@ -1111,7 +1137,7 @@ ohos_probe_device(_EGLDisplay *disp, bool swrast)
     }
 
     if (!dri2_create_screen(disp)) {
-        _eglLog(_EGL_WARNING, "DRI2: failed to create screen");
+        DISPLAY_LOGW("DRI2: failed to create screen");
         ohos_unload_driver(disp);
         return EGL_FALSE;
     }
@@ -1135,7 +1161,7 @@ ohos_open_device(_EGLDisplay *disp, bool swrast)
                                          &fd);
     }
     if (err || fd < 0) {
-        _eglLog(_EGL_WARNING, "fail to get drm fd");
+        DISPLAY_LOGW("fail to get drm fd");
         return EGL_FALSE;
     }
 
@@ -1167,8 +1193,10 @@ ohos_open_device(_EGLDisplay *disp, bool swrast)
     const unsigned node_type = swrast ? DRM_NODE_PRIMARY : DRM_NODE_RENDER;
 #endif
 
+    DISPLAY_LOGD("swrast: %d, node_type: %u", swrast, node_type);
+
     num_devices = drmGetDevices2(0, devices, ARRAY_SIZE(devices));
-    _eglLog(_EGL_WARNING, "ohos_open_device %{public}d", num_devices);
+    DISPLAY_LOGW("ohos_open_device %{public}d", num_devices);
     if (num_devices < 0) {
         return EGL_FALSE;
     }
@@ -1180,10 +1208,11 @@ ohos_open_device(_EGLDisplay *disp, bool swrast)
             continue;
         }
 
+        DISPLAY_LOGD("opening device %s", device->nodes[node_type]);
+
         dri2_dpy->fd = loader_open_device(device->nodes[node_type]);
         if (dri2_dpy->fd < 0) {
-            DISPLAY_LOGI();
-            _eglLog(_EGL_WARNING, "%{public}s() Failed to open DRM device %{public}s",
+            DISPLAY_LOGW("%{public}s() Failed to open DRM device %{public}s",
                     __func__, device->nodes[node_type]);
             continue;
         }
@@ -1210,10 +1239,14 @@ ohos_open_device(_EGLDisplay *disp, bool swrast)
             DISPLAY_LOGI();
             break;
         }
+
+
         if (ohos_probe_device(disp, swrast)) {
             break;
+        } else {
+            DISPLAY_LOGD("Failed to probe device id=%{public}d", i);
         }
-        DISPLAY_LOGI();
+
         /* No explicit request - attempt the next device */
         close(dri2_dpy->fd);
         dri2_dpy->fd = -1;
@@ -1221,8 +1254,7 @@ ohos_open_device(_EGLDisplay *disp, bool swrast)
     drmFreeDevices(devices, num_devices);
     DISPLAY_LOGI();
     if (dri2_dpy->fd < 0) {
-        DISPLAY_LOGI();
-        _eglLog(_EGL_WARNING, "Failed to open %{public}s DRM device",
+        DISPLAY_LOGW("Failed to open %{public}s DRM device",
                 vendor_name ? "desired" : "any");
         return EGL_FALSE;
     }

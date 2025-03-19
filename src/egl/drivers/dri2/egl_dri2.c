@@ -1066,7 +1066,10 @@ dri2_create_screen(_EGLDisplay *disp)
 {
    struct dri2_egl_display *dri2_dpy = dri2_egl_display(disp);
 
+   _eglLog(_EGL_DEBUG, "dri2_create_screen: Starting screen creation");
+
    if (dri2_dpy->image_driver) {
+      _eglLog(_EGL_DEBUG, "dri2_create_screen: Using image driver");
       dri2_dpy->dri_screen =
          dri2_dpy->image_driver->createNewScreen2(0, dri2_dpy->fd,
                                                   dri2_dpy->loader_extensions,
@@ -1074,26 +1077,32 @@ dri2_create_screen(_EGLDisplay *disp)
                                                   &dri2_dpy->driver_configs,
                                                   disp);
    } else if (dri2_dpy->dri2) {
+      _eglLog(_EGL_DEBUG, "dri2_create_screen: Using dri2 driver");
       if (dri2_dpy->dri2->base.version >= 4) {
+         _eglLog(_EGL_DEBUG, "dri2_create_screen: Using createNewScreen2");
          dri2_dpy->dri_screen =
             dri2_dpy->dri2->createNewScreen2(0, dri2_dpy->fd,
                                              dri2_dpy->loader_extensions,
                                              dri2_dpy->driver_extensions,
                                              &dri2_dpy->driver_configs, disp);
       } else {
+         _eglLog(_EGL_DEBUG, "dri2_create_screen: Using createNewScreen");
          dri2_dpy->dri_screen =
             dri2_dpy->dri2->createNewScreen(0, dri2_dpy->fd,
                                             dri2_dpy->loader_extensions,
-                                            &dri2_dpy->driver_configs, disp);
+                                            &dri2_dpy->driver_configs, disp); 
       }
    } else {
       assert(dri2_dpy->swrast);
+      _eglLog(_EGL_DEBUG, "dri2_create_screen: Using swrast driver");
       if (dri2_dpy->swrast->base.version >= 4) {
+         _eglLog(_EGL_DEBUG, "dri2_create_screen: Using createNewScreen2");
          dri2_dpy->dri_screen =
             dri2_dpy->swrast->createNewScreen2(0, dri2_dpy->loader_extensions,
                                                dri2_dpy->driver_extensions,
                                                &dri2_dpy->driver_configs, disp);
       } else {
+         _eglLog(_EGL_DEBUG, "dri2_create_screen: Using createNewScreen");
          dri2_dpy->dri_screen =
             dri2_dpy->swrast->createNewScreen(0, dri2_dpy->loader_extensions,
                                               &dri2_dpy->driver_configs, disp);
@@ -1105,6 +1114,7 @@ dri2_create_screen(_EGLDisplay *disp)
       return EGL_FALSE;
    }
 
+   _eglLog(_EGL_DEBUG, "dri2_create_screen: Screen creation successful");
    dri2_dpy->own_dri_screen = true;
    return EGL_TRUE;
 }
