@@ -52,11 +52,14 @@
 #else
 #include <cutils/log.h>
 #endif /* use log/log.h start from android 8 major version */
-
 #endif /* HAVE_ANDROID_PLATFORM */
 
+#ifdef HAVE_OHOS_PLATFORM
+#include "ohos_log.h"
+#endif /* HAVE_OHOS_PLATFORM */
+
 #define MAXSTRING 1000
-#define FALLBACK_LOG_LEVEL _EGL_WARNING
+#define FALLBACK_LOG_LEVEL _EGL_DEBUG
 
 
 static struct {
@@ -92,6 +95,21 @@ _eglDefaultLogger(EGLint level, const char *msg)
       [_EGL_DEBUG] = ANDROID_LOG_DEBUG,
    };
    LOG_PRI(egl2alog[level], LOG_TAG, "%s", msg);
+#elif defined(HAVE_OHOS_PLATFORM)
+   switch (level) {
+      case _EGL_FATAL:
+         DISPLAY_LOGE("%s", msg);
+         break;
+      case _EGL_WARNING:
+         DISPLAY_LOGW("%s", msg);
+         break;
+      case _EGL_INFO:
+         DISPLAY_LOGI("%s", msg);
+         break;
+      case _EGL_DEBUG:
+         DISPLAY_LOGD("%s", msg);
+         break;
+   }
 #else
    fprintf(stderr, "libEGL %s: %s\n", level_strings[level], msg);
 #endif /* HAVE_ANDROID_PLATFORM */
