@@ -94,8 +94,8 @@ etna_screen_destroy(struct pipe_screen *pscreen)
    if (screen->dummy_bo)
       etna_bo_del(screen->dummy_bo);
 
-   if (screen->dummy_rt_reloc.bo)
-      etna_bo_del(screen->dummy_rt_reloc.bo);
+   if (screen->dummy_desc_reloc.bo)
+      etna_bo_del(screen->dummy_desc_reloc.bo);
 
    if (screen->perfmon)
       etna_perfmon_del(screen->perfmon);
@@ -1044,7 +1044,7 @@ etna_screen_create(struct etna_device *dev, struct etna_gpu *gpu,
 
    /* apply debug options that disable individual features */
    if (DBG_ENABLED(ETNA_DBG_NO_EARLY_Z))
-      etna_core_disable_feature(screen->info, ETNA_FEATURE_NO_EARLY_Z);
+      etna_core_enable_feature(screen->info, ETNA_FEATURE_NO_EARLY_Z);
    if (DBG_ENABLED(ETNA_DBG_NO_TS))
       etna_core_disable_feature(screen->info, ETNA_FEATURE_FAST_CLEAR);
    if (DBG_ENABLED(ETNA_DBG_NO_AUTODISABLE))

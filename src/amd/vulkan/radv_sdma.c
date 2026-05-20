@@ -161,7 +161,26 @@ radv_sdma_get_bpe(const struct radv_image *const image, VkImageAspectFlags aspec
    const struct radeon_surf *surf = &image->planes[plane_idx].surface;
    const bool is_stencil_only = aspect_mask == VK_IMAGE_ASPECT_STENCIL_BIT;
 
-   return is_stencil_only ? 1 : surf->bpe;
+   if (is_stencil_only) {
+      return 1;
+   } else if (image->vk.format == VK_FORMAT_R32G32B32_UINT || image->vk.format == VK_FORMAT_R32G32B32_SINT ||
+              image->vk.format == VK_FORMAT_R32G32B32_SFLOAT) {
+      /* Adjust the bpp for 96-bits formats because SDMA expects a power of two. */
+      return 4;
+   } else {
+      return surf->bpe;
+   }
+}
+
+static uint32_t
+radv_sdma_get_texel_scale(const struct radv_image *const image)
+{
+   if (image->vk.format == VK_FORMAT_R32G32B32_UINT || image->vk.format == VK_FORMAT_R32G32B32_SINT ||
+       image->vk.format == VK_FORMAT_R32G32B32_SFLOAT) {
+      return 3;
+   } else {
+      return 1;
+   }
 }
 
 struct radv_sdma_surf
@@ -170,7 +189,8 @@ radv_sdma_get_buf_surf(const struct radv_buffer *const buffer, const struct radv
 {
    assert(util_bitcount(aspect_mask) == 1);
 
-   const unsigned pitch = (region->bufferRowLength ? region->bufferRowLength : region->imageExtent.width);
+   const uint32_t texel_scale = radv_sdma_get_texel_scale(image);
+   const unsigned pitch = (region->bufferRowLength ? region->bufferRowLength : region->imageExtent.width) * texel_scale;
    const unsigned slice_pitch =
       (region->bufferImageHeight ? region->bufferImageHeight : region->imageExtent.height) * pitch;
 
@@ -185,6 +205,7 @@ radv_sdma_get_buf_surf(const struct radv_buffer *const buffer, const struct radv
       .bpp = bpe,
       .blk_w = surf->blk_w,
       .blk_h = surf->blk_h,
+      .texel_scale = texel_scale,
       .is_linear = true,
    };
 
@@ -204,7 +225,7 @@ radv_sdma_get_metadata_config(const struct radv_device *const device, const stru
    }
 
    const VkFormat format = vk_format_get_aspect_format(image->vk.format, aspect_mask);
-   const struct util_format_description *desc = vk_format_description(format);
+   const struct util_format_description *desc = radv_format_description(format);
 
    const uint32_t data_format = ac_get_cb_format(pdev->info.gfx_level, radv_format_to_pipe_format(format));
    const uint32_t alpha_is_on_msb = ac_alpha_is_on_msb(&pdev->info, radv_format_to_pipe_format(format));
@@ -212,7 +233,7 @@ radv_sdma_get_metadata_config(const struct radv_device *const device, const stru
    const uint32_t surface_type = radv_sdma_surface_type_from_aspect_mask(aspect_mask);
    const uint32_t max_comp_block_size = surf->u.gfx9.color.dcc.max_compressed_block_size;
    const uint32_t max_uncomp_block_size = radv_get_dcc_max_uncompressed_block_size(device, image);
-   const uint32_t pipe_aligned = surf->u.gfx9.color.dcc.pipe_aligned;
+   const uint32_t pipe_aligned = radv_htile_enabled(image, subresource.mipLevel) || surf->u.gfx9.color.dcc.pipe_aligned;
 
    return data_format | alpha_is_on_msb << 8 | number_type << 9 | surface_type << 12 | max_comp_block_size << 24 |
           max_uncomp_block_size << 26 | pipe_aligned << 31;
@@ -220,10 +241,11 @@ radv_sdma_get_metadata_config(const struct radv_device *const device, const stru
 
 static uint32_t
 radv_sdma_get_tiled_info_dword(const struct radv_device *const device, const struct radv_image *const image,
-                               const struct radeon_surf *const surf, const VkImageSubresourceLayers subresource)
+                               const struct radeon_surf *const surf, const VkImageSubresourceLayers subresource,
+                               const VkImageAspectFlags aspect_mask)
 {
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const uint32_t bpe = radv_sdma_get_bpe(image, subresource.aspectMask);
+   const uint32_t bpe = radv_sdma_get_bpe(image, aspect_mask);
    const uint32_t element_size = util_logbase2(bpe);
    const uint32_t swizzle_mode = surf->has_stencil ? surf->u.gfx9.zs.stencil_swizzle_mode : surf->u.gfx9.swizzle_mode;
    const enum gfx9_resource_type dimension = radv_sdma_surface_resource_type(device, surf);
@@ -292,6 +314,7 @@ radv_sdma_get_surf(const struct radv_device *const device, const struct radv_ima
       .blk_h = surf->blk_h,
       .mip_levels = image->vk.mip_levels,
       .micro_tile_mode = surf->micro_tile_mode,
+      .texel_scale = radv_sdma_get_texel_scale(image),
       .is_linear = surf->is_linear,
       .is_3d = surf->u.gfx9.resource_type == RADEON_RESOURCE_3D,
    };
@@ -309,7 +332,7 @@ radv_sdma_get_surf(const struct radv_device *const device, const struct radv_ima
 
       info.va = (va + surf_offset) | surf->tile_swizzle << 8;
 
-      info.info_dword = radv_sdma_get_tiled_info_dword(device, image, surf, subresource);
+      info.info_dword = radv_sdma_get_tiled_info_dword(device, image, surf, subresource, aspect_mask);
       info.header_dword = radv_sdma_get_tiled_header_dword(device, image, subresource);
 
       if (pdev->info.sdma_supports_compression &&
@@ -426,9 +449,9 @@ radv_sdma_emit_copy_linear_sub_window(const struct radv_device *device, struct r
     */
 
    const struct radv_physical_device *pdev = radv_device_physical(device);
-   const VkOffset3D src_off = radv_sdma_pixel_offset_to_blocks(src->offset, src->blk_w, src->blk_h);
-   const VkOffset3D dst_off = radv_sdma_pixel_offset_to_blocks(dst->offset, dst->blk_w, dst->blk_h);
-   const VkExtent3D ext = radv_sdma_pixel_extent_to_blocks(pix_extent, src->blk_w, src->blk_h);
+   VkOffset3D src_off = radv_sdma_pixel_offset_to_blocks(src->offset, src->blk_w, src->blk_h);
+   VkOffset3D dst_off = radv_sdma_pixel_offset_to_blocks(dst->offset, dst->blk_w, dst->blk_h);
+   VkExtent3D ext = radv_sdma_pixel_extent_to_blocks(pix_extent, src->blk_w, src->blk_h);
    const unsigned src_pitch = radv_sdma_pixels_to_blocks(src->pitch, src->blk_w);
    const unsigned dst_pitch = radv_sdma_pixels_to_blocks(dst->pitch, dst->blk_w);
    const unsigned src_slice_pitch = radv_sdma_pixel_area_to_blocks(src->slice_pitch, src->blk_w, src->blk_h);
@@ -439,6 +462,13 @@ radv_sdma_emit_copy_linear_sub_window(const struct radv_device *device, struct r
    assert(util_is_power_of_two_nonzero(src->bpp));
    radv_sdma_check_pitches(src->pitch, src->slice_pitch, src->bpp, false);
    radv_sdma_check_pitches(dst->pitch, dst->slice_pitch, dst->bpp, false);
+
+   /* Adjust offset/extent for 96-bits formats because SDMA expects a power of two bpp. */
+   const uint32_t texel_scale = src->texel_scale == 1 ? dst->texel_scale : src->texel_scale;
+   assert(texel_scale);
+   src_off.x *= texel_scale;
+   dst_off.x *= texel_scale;
+   ext.width *= texel_scale;
 
    ASSERTED unsigned cdw_end = radeon_check_space(device->ws, cs, 13);
 
@@ -628,6 +658,7 @@ radv_sdma_copy_buffer_image_unaligned(const struct radv_device *device, struct r
       .blk_h = img.blk_h,
       .pitch = info.aligned_row_pitch * img.blk_w,
       .slice_pitch = info.aligned_row_pitch * img.blk_w * info.extent_vertical_blocks * img.blk_h,
+      .texel_scale = buf->texel_scale,
    };
 
    VkExtent3D extent = base_extent;

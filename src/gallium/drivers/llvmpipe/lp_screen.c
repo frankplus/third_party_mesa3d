@@ -775,12 +775,17 @@ llvmpipe_is_format_supported(struct pipe_screen *_screen,
       return false;
 
    if (format_desc->colorspace == UTIL_FORMAT_COLORSPACE_YUV) {
-      if (format == PIPE_FORMAT_UYVY ||
-          format == PIPE_FORMAT_YUYV ||
-          format == PIPE_FORMAT_NV12)
+      if (format == PIPE_FORMAT_NV12)
          return true;
       return false;
    }
+
+   /* Prevent PIPE_FORMAT_YUYV and variants from using incomplete fast paths */
+   if (format == PIPE_FORMAT_R8G8_R8B8_UNORM ||
+       format == PIPE_FORMAT_R8B8_R8G8_UNORM ||
+       format == PIPE_FORMAT_G8R8_B8R8_UNORM ||
+       format == PIPE_FORMAT_B8R8_G8R8_UNORM)
+      return false;
 
    /*
     * Everything can be supported by u_format
@@ -836,6 +841,12 @@ llvmpipe_destroy_screen(struct pipe_screen *_screen)
 #if defined(HAVE_LIBDRM) && defined(HAVE_LINUX_UDMABUF_H)
    if (screen->udmabuf_fd != -1)
       close(screen->udmabuf_fd);
+   if (screen->dummy_sync_fd != -1)
+      close(screen->dummy_sync_fd);
+   if (screen->dummy_dmabuf) {
+      _screen->free_memory_fd(_screen,
+                              (struct pipe_memory_allocation*)screen->dummy_dmabuf);
+   }
 #endif
 
 #if DETECT_OS_LINUX

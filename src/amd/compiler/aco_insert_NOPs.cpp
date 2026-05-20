@@ -258,6 +258,7 @@ struct NOP_ctx_gfx11 {
    /* VALUMaskWriteHazard */
    std::bitset<128> sgpr_read_by_valu_as_lanemask;
    std::bitset<128> sgpr_read_by_valu_as_lanemask_then_wr_by_salu;
+   std::bitset<128> sgpr_read_by_valu_as_lanemask_then_wr_by_valu;
 
    /* WMMAHazards */
    std::bitset<256> vgpr_written_by_wmma;
@@ -280,6 +281,8 @@ struct NOP_ctx_gfx11 {
       sgpr_read_by_valu_as_lanemask |= other.sgpr_read_by_valu_as_lanemask;
       sgpr_read_by_valu_as_lanemask_then_wr_by_salu |=
          other.sgpr_read_by_valu_as_lanemask_then_wr_by_salu;
+      sgpr_read_by_valu_as_lanemask_then_wr_by_valu |=
+         other.sgpr_read_by_valu_as_lanemask_then_wr_by_valu;
       vgpr_written_by_wmma |= other.vgpr_written_by_wmma;
       sgpr_read_by_valu |= other.sgpr_read_by_valu;
       sgpr_read_by_valu_then_wr_by_valu |= other.sgpr_read_by_valu_then_wr_by_valu;
@@ -299,6 +302,8 @@ struct NOP_ctx_gfx11 {
              sgpr_read_by_valu_as_lanemask == other.sgpr_read_by_valu_as_lanemask &&
              sgpr_read_by_valu_as_lanemask_then_wr_by_salu ==
                 other.sgpr_read_by_valu_as_lanemask_then_wr_by_salu &&
+             sgpr_read_by_valu_as_lanemask_then_wr_by_valu ==
+                other.sgpr_read_by_valu_as_lanemask_then_wr_by_valu &&
              vgpr_written_by_wmma == other.vgpr_written_by_wmma &&
              sgpr_read_by_valu == other.sgpr_read_by_valu &&
              sgpr_read_by_valu_then_wr_by_salu == other.sgpr_read_by_valu_then_wr_by_salu;
@@ -793,24 +798,6 @@ check_written_regs(const aco_ptr<Instruction>& instr, const std::bitset<N>& chec
                          for (unsigned i = 0; i < def.size(); i++) {
                             unsigned def_reg = def.physReg() + i;
                             writes_any |= def_reg < check_regs.size() && check_regs[def_reg];
-                         }
-                         return writes_any;
-                      });
-}
-
-template <std::size_t N>
-bool
-check_read_regs(const aco_ptr<Instruction>& instr, const std::bitset<N>& check_regs)
-{
-   return std::any_of(instr->operands.begin(), instr->operands.end(),
-                      [&check_regs](const Operand& op) -> bool
-                      {
-                         if (op.isConstant())
-                            return false;
-                         bool writes_any = false;
-                         for (unsigned i = 0; i < op.size(); i++) {
-                            unsigned op_reg = op.physReg() + i;
-                            writes_any |= op_reg < check_regs.size() && check_regs[op_reg];
                          }
                          return writes_any;
                       });
@@ -1464,22 +1451,61 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
 
    if (state.program->gfx_level < GFX12) {
       /* VALUMaskWriteHazard
-       * VALU reads SGPR as a lane mask and later written by SALU cannot safely be read by SALU or
-       * VALU.
+       * VALU reads SGPR as a lane mask and later written by SALU or VALU cannot safely be read by
+       * SALU or VALU.
        */
-      if (state.program->wave_size == 64 && (instr->isSALU() || instr->isVALU()) &&
-          check_read_regs(instr, ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu)) {
-         bld.sopp(aco_opcode::s_waitcnt_depctr, 0xfffe);
-         sa_sdst = 0;
+      if (state.program->wave_size == 64 && (instr->isSALU() || instr->isVALU())) {
+         uint16_t imm = 0xffff;
+
+         for (Operand op : instr->operands) {
+            if (op.physReg() >= state.program->dev.sgpr_limit)
+               continue;
+
+            for (unsigned i = 0; i < op.size(); i++) {
+               unsigned reg = op.physReg() + i;
+
+               /* s_waitcnt_depctr on sa_sdst */
+               if (ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu[reg]) {
+                  imm &= 0xfffe;
+                  sa_sdst = 0;
+               }
+
+               /* s_waitcnt_depctr on va_sdst (if non-VCC SGPR) or va_vcc (if VCC SGPR) */
+               if (ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[reg]) {
+                  bool is_vcc = reg == vcc || reg == vcc_hi;
+                  imm &= is_vcc ? 0xfffd : 0xf1ff;
+                  if (is_vcc)
+                     wait.va_vcc = 0;
+                  else
+                     wait.va_sdst = 0;
+               }
+            }
+         }
+
+         if (imm != 0xffff)
+            bld.sopp(aco_opcode::s_waitcnt_depctr, imm);
       }
 
       if (va_vdst == 0) {
          ctx.valu_since_wr_by_trans.reset();
          ctx.trans_since_wr_by_trans.reset();
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu.reset();
       }
 
       if (sa_sdst == 0)
          ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.reset();
+
+      if (wait.va_sdst == 0) {
+         std::bitset<128> old = ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu;
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu.reset();
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc] = old[vcc];
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc_hi] = old[vcc_hi];
+      }
+
+      if (wait.va_vcc == 0) {
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc] = false;
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc_hi] = false;
+      }
 
       if (state.program->wave_size == 64 && instr->isSALU() &&
           check_written_regs(instr, ctx.sgpr_read_by_valu_as_lanemask)) {
@@ -1511,6 +1537,15 @@ handle_instruction_gfx11(State& state, NOP_ctx_gfx11& ctx, aco_ptr<Instruction>&
                if (!op.isConstant() && op.physReg().reg() < 126)
                   ctx.sgpr_read_by_valu_as_lanemask.reset();
             }
+
+            if (!instr->definitions.empty() &&
+                instr->definitions.back().getTemp().type() == RegType::sgpr &&
+                check_written_regs(instr, ctx.sgpr_read_by_valu_as_lanemask)) {
+               unsigned reg = instr->definitions.back().physReg().reg();
+               for (unsigned i = 0; i < instr->definitions.back().size(); i++)
+                  ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[reg + i] = 1;
+            }
+
             switch (instr->opcode) {
             case aco_opcode::v_addc_co_u32:
             case aco_opcode::v_subb_co_u32:
@@ -1744,6 +1779,16 @@ resolve_all_gfx11(State& state, NOP_ctx_gfx11& ctx,
       if (ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.any()) {
          waitcnt_depctr &= 0xfffe;
          ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_salu.reset();
+      }
+      if (ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc] ||
+          ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc_hi]) {
+         waitcnt_depctr &= 0xfffd;
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc] = false;
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu[vcc_hi] = false;
+      }
+      if (ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu.any()) {
+         waitcnt_depctr &= 0xf1ff;
+         ctx.sgpr_read_by_valu_as_lanemask_then_wr_by_valu.reset();
       }
       if (ctx.sgpr_read_by_valu_as_lanemask.any()) {
          valu_read_sgpr = true;

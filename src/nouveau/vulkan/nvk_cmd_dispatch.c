@@ -39,7 +39,7 @@ nvk_push_dispatch_state_init(struct nvk_queue *queue, struct nv_push *p)
    if (pdev->info.cls_compute == MAXWELL_COMPUTE_A)
       P_IMMD(p, NVB0C0, SET_SELECT_MAXWELL_TEXTURE_HEADERS, V_TRUE);
 
-   if (pdev->info.cls_eng3d < VOLTA_COMPUTE_A) {
+   if (pdev->info.cls_compute < VOLTA_COMPUTE_A) {
       uint64_t shader_base_addr =
          nvk_heap_contiguous_base_address(&dev->shader_heap);
 
@@ -508,7 +508,7 @@ nvk_CmdDispatchIndirect(VkCommandBuffer commandBuffer,
    }
 
    struct nv_push *p;
-   if (nvk_cmd_buffer_compute_cls(cmd) >= TURING_A) {
+   if (nvk_cmd_buffer_compute_cls(cmd) >= TURING_COMPUTE_A) {
       p = nvk_cmd_buffer_push(cmd, 14);
       P_IMMD(p, NVC597, SET_MME_DATA_FIFO_CONFIG, FIFO_SIZE_SIZE_4KB);
       P_1INC(p, NV9097, CALL_MME_MACRO(NVK_MME_DISPATCH_INDIRECT));

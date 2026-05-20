@@ -1894,6 +1894,13 @@ brw_postprocess_nir(nir_shader *nir, const struct brw_compiler *compiler,
       OPT(nir_lower_subgroups, &subgroups_options);
    }
 
+   /* Run fsign lowering again after the last time brw_nir_optimize is called.
+    * As is the case with conversion lowering (below), brw_nir_optimize can
+    * create additional fsign instructions.
+    */
+   if (OPT(brw_nir_lower_fsign))
+      OPT(nir_opt_dce);
+
    /* Run intel_nir_lower_conversions only after the last tiem
     * brw_nir_optimize is called. Various optimizations invoked there can
     * rematerialize the conversions that the lowering pass eliminates.
@@ -2269,20 +2276,21 @@ brw_nir_create_passthrough_tcs(void *mem_ctx, const struct brw_compiler *compile
 }
 
 nir_def *
-brw_nir_load_global_const(nir_builder *b, nir_intrinsic_instr *load_uniform,
+brw_nir_load_global_const(nir_builder *b, nir_intrinsic_instr *load,
       nir_def *base_addr, unsigned off)
 {
-   assert(load_uniform->intrinsic == nir_intrinsic_load_uniform);
+   assert(load->intrinsic == nir_intrinsic_load_push_constant ||
+          load->intrinsic == nir_intrinsic_load_uniform);
 
-   unsigned bit_size = load_uniform->def.bit_size;
+   unsigned bit_size = load->def.bit_size;
    assert(bit_size >= 8 && bit_size % 8 == 0);
    unsigned byte_size = bit_size / 8;
    nir_def *sysval;
 
-   if (nir_src_is_const(load_uniform->src[0])) {
+   if (nir_src_is_const(load->src[0])) {
       uint64_t offset = off +
-                        nir_intrinsic_base(load_uniform) +
-                        nir_src_as_uint(load_uniform->src[0]);
+                        nir_intrinsic_base(load) +
+                        nir_src_as_uint(load->src[0]);
 
       /* Things should be component-aligned. */
       assert(offset % byte_size == 0);
@@ -2302,14 +2310,14 @@ brw_nir_load_global_const(nir_builder *b, nir_intrinsic_instr *load_uniform,
       }
 
       sysval = nir_extract_bits(b, data, 2, suboffset * 8,
-                                load_uniform->num_components, bit_size);
+                                load->num_components, bit_size);
    } else {
       nir_def *offset32 =
-         nir_iadd_imm(b, load_uniform->src[0].ssa,
-                         off + nir_intrinsic_base(load_uniform));
+         nir_iadd_imm(b, load->src[0].ssa,
+                         off + nir_intrinsic_base(load));
       nir_def *addr = nir_iadd(b, base_addr, nir_u2u64(b, offset32));
       sysval = nir_load_global_constant(b, addr, byte_size,
-                                        load_uniform->num_components, bit_size);
+                                        load->num_components, bit_size);
    }
 
    return sysval;

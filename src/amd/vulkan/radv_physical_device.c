@@ -89,8 +89,7 @@ radv_transfer_queue_enabled(const struct radv_physical_device *pdev)
 static bool
 radv_vrs_attachment_enabled(const struct radv_physical_device *pdev)
 {
-   const struct radv_instance *instance = radv_physical_device_instance(pdev);
-   return pdev->info.gfx_level >= GFX11 || !(instance->debug_flags & RADV_DEBUG_NO_HIZ);
+   return pdev->info.gfx_level >= GFX11 || pdev->use_hiz;
 }
 
 static bool
@@ -134,64 +133,6 @@ radv_emulate_rt(const struct radv_physical_device *pdev)
 {
    const struct radv_instance *instance = radv_physical_device_instance(pdev);
    return instance->perftest_flags & RADV_PERFTEST_EMULATE_RT;
-}
-
-static VkConformanceVersion
-radv_get_conformance_version(const struct radv_physical_device *pdev)
-{
-   VkConformanceVersion conformance_version = {0}; /* Non-conformant by default */
-
-   if (pdev->info.gfx_level >= GFX8 && pdev->info.gfx_level <= GFX11_5) {
-      switch (pdev->info.family) {
-      /* GFX8 */
-      case CHIP_TONGA:
-      case CHIP_FIJI:
-      case CHIP_POLARIS10:
-      /* GFX9 */
-      case CHIP_VEGA10:
-      case CHIP_RENOIR:
-      /* GFX10 */
-      case CHIP_NAVI14:
-      /* GFX10.3 */
-      case CHIP_NAVI21:
-      case CHIP_NAVI22:
-      case CHIP_VANGOGH:
-      /* GFX11 */
-      case CHIP_NAVI31:
-      /* GFX11.5 */
-      case CHIP_GFX1150:
-         conformance_version = (VkConformanceVersion){
-            .major = 1,
-            .minor = 4,
-            .subminor = 0,
-            .patch = 0,
-         };
-         break;
-      default:
-         break;
-      }
-   } else {
-      /* GFX6-7 */
-      switch (pdev->info.family) {
-      case CHIP_TAHITI:
-      case CHIP_PITCAIRN:
-      case CHIP_VERDE:
-      case CHIP_OLAND:
-      case CHIP_BONAIRE:
-      case CHIP_HAWAII:
-         conformance_version = (VkConformanceVersion){
-            .major = 1,
-            .minor = 3,
-            .subminor = 9,
-            .patch = 2,
-         };
-         break;
-      default:
-         break;
-      }
-   }
-
-   return conformance_version;
 }
 
 static void
@@ -1557,7 +1498,6 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
       .maxMemoryAllocationSize = RADV_MAX_MEMORY_ALLOCATION_SIZE,
 
       /* Vulkan 1.2 */
-      .conformanceVersion = radv_get_conformance_version(pdev),
       /* On AMD hardware, denormals and rounding modes for fp16/fp64 are
        * controlled by the same config register.
        */
@@ -1874,9 +1814,11 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
       .maxSamplerDescriptorBufferBindings = MAX_SETS,
       .maxEmbeddedImmutableSamplerBindings = MAX_SETS,
       .maxEmbeddedImmutableSamplers = radv_max_descriptor_set_size(),
-      /* No data required for capture/replay but these values need to be non-zero. */
+      /* No data required for capture/replay (except for sparse images) but these values need to be
+       * non-zero.
+       */
       .bufferCaptureReplayDescriptorDataSize = 1,
-      .imageCaptureReplayDescriptorDataSize = 1,
+      .imageCaptureReplayDescriptorDataSize = 8,
       .imageViewCaptureReplayDescriptorDataSize = 1,
       .samplerCaptureReplayDescriptorDataSize = 1,
       .accelerationStructureCaptureReplayDescriptorDataSize = 1,
@@ -1974,6 +1916,13 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
    snprintf(p->driverInfo, VK_MAX_DRIVER_INFO_SIZE, "Mesa " PACKAGE_VERSION MESA_GIT_SHA1 "%s",
             radv_get_compiler_string(pdev));
 
+   p->conformanceVersion = (VkConformanceVersion){
+      .major = 1,
+      .minor = 4,
+      .subminor = 0,
+      .patch = 0,
+   };
+
    memset(p->optimalTilingLayoutUUID, 0, sizeof(p->optimalTilingLayoutUUID));
 
    /* VK_EXT_physical_device_drm */
@@ -2002,6 +1951,20 @@ radv_get_physical_device_properties(struct radv_physical_device *pdev)
    /* VK_EXT_shader_object */
    radv_device_get_cache_uuid(pdev, p->shaderBinaryUUID);
    p->shaderBinaryVersion = 1;
+}
+
+static bool
+radv_is_gpu_supported(const struct radeon_info *info)
+{
+   /* AMD CDNA isn't supported. */
+   if (info->gfx_level == GFX9 && !info->has_graphics)
+      return false;
+
+   /* Unknown GPU generations aren't supported. */
+   if (info->gfx_level > GFX12)
+      return false;
+
+   return true;
 }
 
 static VkResult
@@ -2051,7 +2014,7 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
       drmFreeVersion(version);
 
       if (instance->debug_flags & RADV_DEBUG_STARTUP)
-         fprintf(stderr, "radv: info: Found compatible device '%s'.\n", path);
+         fprintf(stderr, "radv: info: Found device '%s'.\n", path);
    }
 #endif
 
@@ -2073,19 +2036,23 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
 
 #ifdef _WIN32
    pdev->ws = radv_null_winsys_create();
+   if (!pdev->ws)
+      result = VK_ERROR_OUT_OF_HOST_MEMORY;
 #else
    if (drm_device) {
       bool reserve_vmid = instance->vk.trace_mode & RADV_TRACE_MODE_RGP;
 
-      pdev->ws =
-         radv_amdgpu_winsys_create(fd, instance->debug_flags, instance->perftest_flags, reserve_vmid, is_virtio);
+      result = radv_amdgpu_winsys_create(fd, instance->debug_flags, instance->perftest_flags, reserve_vmid, is_virtio,
+                                         &pdev->ws);
    } else {
       pdev->ws = radv_null_winsys_create();
+      if (!pdev->ws)
+         result = VK_ERROR_OUT_OF_HOST_MEMORY;
    }
 #endif
 
-   if (!pdev->ws) {
-      result = vk_errorf(instance, VK_ERROR_INITIALIZATION_FAILED, "failed to initialize winsys");
+   if (result != VK_SUCCESS) {
+      result = vk_errorf(instance, result, "failed to initialize winsys");
       goto fail_base;
    }
 
@@ -2113,6 +2080,14 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
    pdev->local_fd = fd;
    pdev->ws->query_info(pdev->ws, &pdev->info);
    pdev->info.family_overridden = drm_device == NULL;
+
+   /* Allow all devices on a virtual winsys, otherwise do a basic support check. */
+   if (!radv_is_gpu_supported(&pdev->info) && drm_device) {
+      if (instance->debug_flags & RADV_DEBUG_STARTUP)
+         fprintf(stderr, "radv: info: device '%s' is not supported by RADV.\n", pdev->info.name);
+      result = VK_ERROR_INCOMPATIBLE_DRIVER;
+      goto fail_wsi;
+   }
 
    if (drm_device) {
       pdev->addrlib = ac_addrlib_create(&pdev->info, &pdev->info.max_alignment);
@@ -2154,6 +2129,10 @@ radv_physical_device_try_create(struct radv_instance *instance, drmDevicePtr drm
    pdev->dcc_msaa_allowed = (instance->perftest_flags & RADV_PERFTEST_DCC_MSAA);
 
    pdev->use_fmask = pdev->info.gfx_level < GFX11 && !(instance->debug_flags & RADV_DEBUG_NO_FMASK);
+
+   pdev->use_hiz = !(instance->debug_flags & RADV_DEBUG_NO_HIZ);
+   if (pdev->info.gfx_level == GFX12 && instance->drirc.disable_hiz_his_gfx12)
+      pdev->use_hiz = false;
 
    pdev->use_ngg = (pdev->info.gfx_level >= GFX10 && pdev->info.family != CHIP_NAVI14 &&
                     !(instance->debug_flags & RADV_DEBUG_NO_NGG)) ||

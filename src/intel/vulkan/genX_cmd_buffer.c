@@ -66,7 +66,7 @@ convert_pc_to_bits(struct GENX(PIPE_CONTROL) *pc) {
    bits |= (pc->StallAtPixelScoreboard) ?  ANV_PIPE_STALL_AT_SCOREBOARD_BIT : 0;
    bits |= (pc->DepthStallEnable) ?  ANV_PIPE_DEPTH_STALL_BIT : 0;
    bits |= (pc->CommandStreamerStallEnable) ?  ANV_PIPE_CS_STALL_BIT : 0;
-#if GFX_VERx10 == 125
+#if GFX_VERx10 >= 125
    bits |= (pc->UntypedDataPortCacheFlushEnable) ? ANV_PIPE_UNTYPED_DATAPORT_CACHE_FLUSH_BIT : 0;
    bits |= (pc->CCSFlushEnable) ? ANV_PIPE_CCS_CACHE_FLUSH_BIT : 0;
 #endif
@@ -177,15 +177,22 @@ fill_state_base_addr(struct anv_cmd_buffer *cmd_buffer,
       sba->BindlessSurfaceStateMOCS = mocs;
       sba->BindlessSurfaceStateBaseAddressModifyEnable = true;
 #else
+      /* We report descriptorBufferOffsetAlignment = 64, but
+       * STATE_BASE_ADDRESS::BindlessSurfaceStateBaseAddress needs to be
+       * aligned to 4096. Round down to 4096 here and add the remaining to the
+       * push constants descriptor set offsets in
+       * compute_descriptor_set_surface_offset().
+       */
       const uint64_t surfaces_addr =
-         cmd_buffer->state.descriptor_buffers.surfaces_address != 0 ?
-         cmd_buffer->state.descriptor_buffers.surfaces_address :
-         anv_address_physical(device->workaround_address);
+         ROUND_DOWN_TO(
+            cmd_buffer->state.descriptor_buffers.surfaces_address != 0 ?
+            cmd_buffer->state.descriptor_buffers.surfaces_address :
+            anv_address_physical(device->workaround_address),
+            4096);
       const uint64_t surfaces_size =
          cmd_buffer->state.descriptor_buffers.surfaces_address != 0 ?
          MIN2(device->physical->va.dynamic_visible_pool.size -
-              (cmd_buffer->state.descriptor_buffers.surfaces_address -
-               device->physical->va.dynamic_visible_pool.addr),
+              (surfaces_addr - device->physical->va.dynamic_visible_pool.addr),
               anv_physical_device_bindless_heap_size(device->physical, true)) :
          (device->workaround_bo->size - device->workaround_address.offset);
       sba->BindlessSurfaceStateBaseAddress = (struct anv_address) {
@@ -2685,7 +2692,11 @@ compute_descriptor_set_surface_offset(const struct anv_cmd_buffer *cmd_buffer,
               pipe_state->descriptor_buffers[set_idx].buffer_offset;
    }
 
-   return pipe_state->descriptor_buffers[set_idx].buffer_offset << 6;
+   const uint32_t descriptor_buffer_align =
+      cmd_buffer->state.descriptor_buffers.surfaces_address % 4096;
+
+   return (descriptor_buffer_align +
+           pipe_state->descriptor_buffers[set_idx].buffer_offset) << 6;
 }
 
 ALWAYS_INLINE static uint32_t
@@ -2742,8 +2753,10 @@ genX(flush_descriptor_buffers)(struct anv_cmd_buffer *cmd_buffer,
 #if GFX_VERx10 < 125
       struct anv_device *device = cmd_buffer->device;
       push_constants->surfaces_base_offset =
-         (cmd_buffer->state.descriptor_buffers.surfaces_address -
-          device->physical->va.dynamic_visible_pool.addr);
+         ROUND_DOWN_TO(
+            cmd_buffer->state.descriptor_buffers.surfaces_address,
+            4096) -
+         device->physical->va.dynamic_visible_pool.addr;
 #endif
 
       cmd_buffer->state.push_constants_dirty |=
@@ -6345,7 +6358,12 @@ genX(batch_emit_fast_color_dummy_blit)(struct anv_batch *batch,
 #if GFX_VERx10 >= 125
    anv_batch_emit(batch, GENX(XY_FAST_COLOR_BLT), blt) {
       blt.DestinationBaseAddress = device->workaround_address;
+#if GFX_VERx10 >= 200
+      blt.DestinationMOCSindex = MOCS_GET_INDEX(device->isl_dev.mocs.blitter_dst);
+      blt.DestinationEncryptEn = MOCS_GET_ENCRYPT_EN(device->isl_dev.mocs.blitter_dst);
+#else
       blt.DestinationMOCS = device->isl_dev.mocs.blitter_dst;
+#endif
       blt.DestinationPitch = 63;
       blt.DestinationX2 = 1;
       blt.DestinationY2 = 4;

@@ -340,6 +340,7 @@ radv_process_color_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *
                          const VkImageSubresourceRange *subresourceRange, enum radv_color_op op)
 {
    struct radv_device *device = radv_cmd_buffer_device(cmd_buffer);
+   const struct radv_physical_device *pdev = radv_device_physical(device);
    struct radv_meta_saved_state saved_state;
    bool old_predicating = false;
    bool flush_cb = false;
@@ -433,8 +434,11 @@ radv_process_color_image(struct radv_cmd_buffer *cmd_buffer, struct radv_image *
 
       if (cmd_buffer->state.predication_type != -1) {
          /* Restore previous conditional rendering user state. */
+         const uint64_t pred_va = pdev->info.has_32bit_predication ? cmd_buffer->state.user_predication_va
+                                                                   : cmd_buffer->state.emulated_predication_va;
+
          radv_emit_set_predication_state(cmd_buffer, cmd_buffer->state.predication_type,
-                                         cmd_buffer->state.predication_op, cmd_buffer->state.predication_va);
+                                         cmd_buffer->state.predication_op, pred_va);
       }
    }
 
@@ -456,6 +460,9 @@ radv_fast_clear_eliminate(struct radv_cmd_buffer *cmd_buffer, struct radv_image 
 {
    struct radv_barrier_data barrier = {0};
 
+   if (cmd_buffer->qf != RADV_QUEUE_GENERAL)
+      return;
+
    barrier.layout_transitions.fast_clear_eliminate = 1;
    radv_describe_layout_transition(cmd_buffer, &barrier);
 
@@ -467,6 +474,9 @@ radv_fmask_decompress(struct radv_cmd_buffer *cmd_buffer, struct radv_image *ima
                       const VkImageSubresourceRange *subresourceRange)
 {
    struct radv_barrier_data barrier = {0};
+
+   if (cmd_buffer->qf != RADV_QUEUE_GENERAL)
+      return;
 
    barrier.layout_transitions.fmask_decompress = 1;
    radv_describe_layout_transition(cmd_buffer, &barrier);

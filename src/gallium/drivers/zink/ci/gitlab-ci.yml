@@ -6,6 +6,8 @@ zink-lvp:
     - .test-gl
     - .deqp-test
     - .zink-lvp-test
+  tags:
+    - kvm  # FIXME: this is a hack, should not be needed
   variables:
     DEQP_SUITE: zink-lvp
     DEQP_FRACTION: 8
@@ -210,7 +212,7 @@ zink-radv-vangogh-valve:
     B2C_TIMEOUT_OVERALL_MINUTES: 30
     FDO_CI_CONCURRENT: 6
     ZINK_DEBUG: vvl
-  # Override the list of tags to drop `priority:low`
+  # Override the list of tags to drop `ci-tron:priority:low`
   tags:
     - farm:$RUNNER_FARM_LOCATION
     - amdgpu:codename:VANGOGH

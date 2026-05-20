@@ -7391,7 +7391,9 @@ Temp
 get_scratch_resource(isel_context* ctx)
 {
    Builder bld(ctx->program, ctx->block);
-   Temp scratch_addr = ctx->program->private_segment_buffer;
+   Temp scratch_addr;
+   if (!ctx->program->private_segment_buffers.empty())
+      scratch_addr = ctx->program->private_segment_buffers.back();
    if (!scratch_addr.bytes()) {
       Temp addr_lo =
          bld.sop1(aco_opcode::p_load_symbol, bld.def(s1), Operand::c32(aco_symbol_scratch_addr_lo));
@@ -7449,7 +7451,7 @@ visit_load_scratch(isel_context* ctx, nir_intrinsic_instr* instr)
    } else {
       info.resource = get_scratch_resource(ctx);
       info.offset = Operand(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[0].ssa)));
-      info.soffset = ctx->program->scratch_offset;
+      info.soffset = ctx->program->scratch_offsets.back();
       emit_load(ctx, bld, info, scratch_mubuf_load_params);
    }
 }
@@ -7505,7 +7507,7 @@ visit_store_scratch(isel_context* ctx, nir_intrinsic_instr* instr)
       offset = as_vgpr(ctx, offset);
       for (unsigned i = 0; i < write_count; i++) {
          aco_opcode op = get_buffer_store_op(write_datas[i].bytes());
-         Instruction* mubuf = bld.mubuf(op, rsrc, offset, ctx->program->scratch_offset,
+         Instruction* mubuf = bld.mubuf(op, rsrc, offset, ctx->program->scratch_offsets.back(),
                                         write_datas[i], offsets[i], true);
          mubuf->mubuf().sync = memory_sync_info(storage_scratch, semantic_private);
          unsigned access = ACCESS_TYPE_STORE | ACCESS_IS_SWIZZLED_AMD |
@@ -7932,7 +7934,7 @@ visit_cmat_muladd(isel_context* ctx, nir_intrinsic_instr* instr)
    Operand B(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[1].ssa)));
    Operand C(as_vgpr(ctx, get_ssa_temp(ctx, instr->src[2].ssa)));
 
-   VALU_instruction& vop3p = bld.vop3p(opcode, Definition(dst), A, B, C, 0, 0)->valu();
+   VALU_instruction& vop3p = bld.vop3p(opcode, Definition(dst), A, B, C, 0, 0x7)->valu();
    vop3p.neg_lo[0] = (signed_mask & 0x1) != 0;
    vop3p.neg_lo[1] = (signed_mask & 0x2) != 0;
    vop3p.clamp = clamp;
@@ -8082,24 +8084,8 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
          aco_opcode subrev =
             instr->def.bit_size == 16 ? aco_opcode::v_subrev_f16 : aco_opcode::v_subrev_f32;
 
-         /* v_interp with constant sources only works on GFX11/11.5,
-          * and it's only faster on GFX11.5.
-          */
-         bool use_interp = dpp_ctrl1 == dpp_quad_perm(0, 0, 0, 0) && instr->def.bit_size == 32 &&
-                           ctx->program->gfx_level == GFX11_5;
          if (!nir_src_is_divergent(&instr->src[0])) {
             bld.vop2(subrev, Definition(dst), src, src);
-         } else if (use_interp && dpp_ctrl2 == dpp_quad_perm(1, 1, 1, 1)) {
-            bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, Definition(dst), src,
-                              Operand::c32(0x3f800000), src)
-               ->valu()
-               .neg[2] = true;
-         } else if (use_interp && dpp_ctrl2 == dpp_quad_perm(2, 2, 2, 2)) {
-            Builder::Result tmp = bld.vinterp_inreg(aco_opcode::v_interp_p10_f32_inreg, bld.def(v1),
-                                                    Operand::c32(0), Operand::c32(0), src);
-            tmp->valu().neg = 0x6;
-            bld.vinterp_inreg(aco_opcode::v_interp_p2_f32_inreg, Definition(dst), src,
-                              Operand::c32(0x3f800000), tmp);
          } else if (ctx->program->gfx_level >= GFX8 && dpp_ctrl2 == dpp_quad_perm(0, 1, 2, 3)) {
             bld.vop2_dpp(subrev, Definition(dst), src, src, dpp_ctrl1);
          } else if (ctx->program->gfx_level >= GFX8) {
@@ -8661,6 +8647,11 @@ visit_intrinsic(isel_context* ctx, nir_intrinsic_instr* instr)
       /* Enable WQM in order to prevent helper lanes from getting terminated. */
       if (ctx->shader->info.maximally_reconverges)
          ctx->program->needs_wqm = true;
+
+      if (ctx->block->loop_nest_depth || ctx->cf_info.parent_if.is_divergent) {
+         ctx->cf_info.exec.potentially_empty_discard = true;
+         begin_empty_exec_skip(ctx, &instr->instr, instr->instr.block);
+      }
 
       break;
    }
@@ -10940,9 +10931,9 @@ add_startpgm(struct isel_context* ctx)
           * handling spilling.
           */
          if (ctx->args->ring_offsets.used)
-            ctx->program->private_segment_buffer = get_arg(ctx, ctx->args->ring_offsets);
+            ctx->program->private_segment_buffers.push_back(get_arg(ctx, ctx->args->ring_offsets));
 
-         ctx->program->scratch_offset = get_arg(ctx, ctx->args->scratch_offset);
+         ctx->program->scratch_offsets.push_back(get_arg(ctx, ctx->args->scratch_offset));
       } else if (ctx->program->gfx_level <= GFX10_3 && ctx->program->stage != raytracing_cs) {
          /* Manually initialize scratch. For RT stages scratch initialization is done in the prolog.
           */
