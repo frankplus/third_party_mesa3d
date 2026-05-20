@@ -5,3 +5,7 @@
 *.out
 /build
 .venv/
+build-ohos
+cross_file
+pkgconfig/
+thirdparty

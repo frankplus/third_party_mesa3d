@@ -38,6 +38,7 @@ sudo apt-get install pkg-config
 cd ~/mesa3d
 python ohos/build_ohos.py ~/openharmony rk3568 ~/mesa3d
 python ohos/build_ohos64.py ~/ohos_50 rpi4 ~/ohos_50/third_party/mesa3d-opc
+python ohos/build_ohos86.py ~/ohos_60 x86_general ~/ohos_60/third_party/mesa3d-new "noasan" "no_coverage" "new_skia"
 python ohos/build_ohos64.py ~/ohos_40 beryllium ~/ohos_40/third_party/mesa3d
 python ohos/build_ohos64.py ~/ohos_40 sagit ~/ohos_40/third_party/mesa3d
 

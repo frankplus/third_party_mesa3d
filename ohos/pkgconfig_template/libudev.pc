@@ -1,9 +1,9 @@
 ohos_project_dir=ohos_project_directory_stub
-libdir=${ohos_project_dir}/out/ohos-arm-release/packages/phone/system/lib64/
-includedir=${ohos_project_dir}/third_party/eudev/export_include
+libdir=${ohos_project_dir}/out/ohos-arm-release/obj/foundation/multimodalinput/input/libudev/
+includedir=${ohos_project_dir}/foundation/multimodalinput/input/libudev/include/
 
-Name: eudev
-Description: eudev
+Name: udev
+Description: udev
 Version: 2.5.109
-Libs: -L${libdir} -ludev.z
+Libs: -L${libdir} -lmmi_libudev
 Cflags: -I${includedir}

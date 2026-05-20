@@ -1,0 +1,9 @@
+ohos_project_dir=ohos_project_directory_stub
+libdir=${ohos_project_dir}/out/ohos-arm-release/opc_soc_products/x86_general/
+includedir=${ohos_project_dir}/third_party/elfutils/libelf/
+
+Name: libelf
+Description: elfutils libelf library to read and write ELF files
+Version: 0.185
+Libs: -L${libdir} -lelf
+Cflags: -I${includedir}

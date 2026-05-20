@@ -538,7 +538,8 @@ u_trace_context_init(struct u_trace_context *utctx,
    utctx->event_nr = 0;
    utctx->start_of_frame = true;
 
-   utctx->dummy_indirect_data = calloc(1, max_indirect_size_bytes);
+   utctx->dummy_indirect_data = max_indirect_size_bytes ?
+      calloc(1, max_indirect_size_bytes) : NULL;
 
    list_inithead(&utctx->flushed_trace_chunks);
 

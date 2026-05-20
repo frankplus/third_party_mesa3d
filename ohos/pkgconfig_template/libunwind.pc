@@ -1,0 +1,9 @@
+ohos_project_dir=ohos_project_directory_stub
+libdir=${ohos_project_dir}/out/ohos-arm-release/thirdparty/libunwind/
+includedir=${ohos_project_dir}/out/ohos-arm-release/gen/third_party/libunwind/libunwind-1.8.1/include
+
+Name: libunwind
+Version: 1.8.1
+Description: libunwind
+Libs: -L${libdir} -lunwind.z
+Cflags: -I${includedir}

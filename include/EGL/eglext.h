@@ -134,7 +134,7 @@ typedef EGLSyncKHR (EGLAPIENTRYP PFNEGLCREATESYNCKHRPROC) (EGLDisplay dpy, EGLen
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLDESTROYSYNCKHRPROC) (EGLDisplay dpy, EGLSyncKHR sync);
 typedef EGLint (EGLAPIENTRYP PFNEGLCLIENTWAITSYNCKHRPROC) (EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout);
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLGETSYNCATTRIBKHRPROC) (EGLDisplay dpy, EGLSyncKHR sync, EGLint attribute, EGLint *value);
-#ifdef EGL_EGLEXT_PROTOTYPES
+#if defined(EGL_EGLEXT_PROTOTYPES) || defined(HAVE_OHOS_PLATFORM)
 EGLAPI EGLSyncKHR EGLAPIENTRY eglCreateSyncKHR (EGLDisplay dpy, EGLenum type, const EGLint *attrib_list);
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroySyncKHR (EGLDisplay dpy, EGLSyncKHR sync);
 EGLAPI EGLint EGLAPIENTRY eglClientWaitSyncKHR (EGLDisplay dpy, EGLSyncKHR sync, EGLint flags, EGLTimeKHR timeout);
@@ -188,7 +188,7 @@ typedef void *EGLImageKHR;
 #define EGL_NO_IMAGE_KHR                  EGL_CAST(EGLImageKHR,0)
 typedef EGLImageKHR (EGLAPIENTRYP PFNEGLCREATEIMAGEKHRPROC) (EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
 typedef EGLBoolean (EGLAPIENTRYP PFNEGLDESTROYIMAGEKHRPROC) (EGLDisplay dpy, EGLImageKHR image);
-#ifdef EGL_EGLEXT_PROTOTYPES
+#if defined(EGL_EGLEXT_PROTOTYPES) || defined(HAVE_OHOS_PLATFORM)
 EGLAPI EGLImageKHR EGLAPIENTRY eglCreateImageKHR (EGLDisplay dpy, EGLContext ctx, EGLenum target, EGLClientBuffer buffer, const EGLint *attrib_list);
 EGLAPI EGLBoolean EGLAPIENTRY eglDestroyImageKHR (EGLDisplay dpy, EGLImageKHR image);
 #endif
@@ -270,6 +270,11 @@ EGLAPI EGLBoolean EGLAPIENTRY eglSetDamageRegionKHR (EGLDisplay dpy, EGLSurface 
 #define EGL_KHR_platform_android 1
 #define EGL_PLATFORM_ANDROID_KHR          0x3141
 #endif /* EGL_KHR_platform_android */
+
+#ifndef EGL_KHR_platform_ohos
+#define EGL_KHR_platform_ohos 1
+#define EGL_PLATFORM_OHOS_KHR             0x34E0
+#endif /* EGL_KHR_platform_ohos */
 
 #ifndef EGL_KHR_platform_gbm
 #define EGL_KHR_platform_gbm 1
@@ -533,7 +538,7 @@ EGLAPI EGLClientBuffer EGLAPIENTRY eglGetNativeClientBufferANDROID (const struct
 #define EGL_SYNC_NATIVE_FENCE_SIGNALED_ANDROID 0x3146
 #define EGL_NO_NATIVE_FENCE_FD_ANDROID    -1
 typedef EGLint (EGLAPIENTRYP PFNEGLDUPNATIVEFENCEFDANDROIDPROC) (EGLDisplay dpy, EGLSyncKHR sync);
-#ifdef EGL_EGLEXT_PROTOTYPES
+#if defined(EGL_EGLEXT_PROTOTYPES) || defined(HAVE_OHOS_PLATFORM)
 EGLAPI EGLint EGLAPIENTRY eglDupNativeFenceFDANDROID (EGLDisplay dpy, EGLSyncKHR sync);
 #endif
 #endif /* EGL_ANDROID_native_fence_sync */
@@ -1445,6 +1450,11 @@ EGLAPI EGLuint64NV EGLAPIENTRY eglGetSystemTimeNV (void);
 #define EGL_NV_triple_buffer 1
 #define EGL_TRIPLE_BUFFER_NV              0x3230
 #endif /* EGL_NV_triple_buffer */
+
+#ifndef EGL_OHOS_image_native_buffer
+#define EGL_OHOS_image_native_buffer 1
+#define EGL_NATIVE_BUFFER_OHOS            0x34E1
+#endif /* EGL_OHOS_image_native_buffer */
 
 #ifndef EGL_QNX_image_native_buffer
 #define EGL_QNX_image_native_buffer 1

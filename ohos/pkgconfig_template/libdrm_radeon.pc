@@ -1,0 +1,9 @@
+ohos_project_dir=ohos_project_directory_stub
+libdir=${ohos_project_dir}/out/ohos-arm-release/opc_soc_products/x86_general/
+includedir=${ohos_project_dir}/third_party/libdrm
+
+Name: libdrm_radeon
+Description: Userspace interface to kernel DRM services
+Version: 2.4.121
+Libs: -L${libdir} -ldrm_radeon
+Cflags: -I${includedir} -I${includedir}/include/drm/ -I${includedir}/radeon

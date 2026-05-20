@@ -356,6 +356,11 @@ _EGLDisplay *
 _eglGetAndroidDisplay(void *native_display, const EGLAttrib *attrib_list);
 #endif
 
+#ifdef HAVE_OHOS_PLATFORM
+_EGLDisplay*
+_eglGetOHOSDisplay(void *native_display, const EGLAttrib *attrib_list);
+#endif
+
 _EGLDisplay *
 _eglGetDeviceDisplay(void *native_display, const EGLAttrib *attrib_list);
 

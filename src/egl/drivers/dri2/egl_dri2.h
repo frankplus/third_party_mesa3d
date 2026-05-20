@@ -83,6 +83,10 @@ struct zwp_linux_dmabuf_feedback_v1;
 
 #endif /* HAVE_ANDROID_PLATFORM */
 
+#ifdef HAVE_OHOS_PLATFORM
+#include "window.h"
+#endif
+
 #include "eglconfig.h"
 #include "eglcontext.h"
 #include "eglcurrent.h"
@@ -304,6 +308,11 @@ struct dri2_egl_display {
    bool has_native_fence_fd;
    bool pure_swrast;
 #endif
+
+#ifdef HAVE_OHOS_PLATFORM
+   bool has_native_fence_fd;
+   bool pure_swrast;
+#endif
 };
 
 struct dri2_egl_context {
@@ -391,6 +400,24 @@ struct dri2_egl_surface {
 
 #ifdef HAVE_OHOS_PLATFORM
    struct NativeWindow *window;
+   struct NativeWindowBuffer *buffer;
+
+   /* in-fence associated with buffer, -1 once passed down to dri layer: */
+   int in_fence_fd;
+
+   struct dri_image *dri_image_back;
+   struct dri_image *dri_image_front;
+
+   /* Used to record all the buffers created by ANativeWindow and their ages.
+    * Allocate number of color_buffers based on query to android bufferqueue
+    * and save color_buffers_count.
+    */
+   int color_buffers_count;
+   struct {
+      struct NativeWindowBuffer *buffer;
+      int age;
+   } *color_buffers, *back;
+   uint32_t gralloc_usage;
 #endif
 
    /* surfaceless and device */

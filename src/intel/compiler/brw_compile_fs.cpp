@@ -17,6 +17,7 @@
 #include "dev/intel_wa.h"
 
 #include <memory>
+#include <algorithm>
 
 using namespace brw;
 

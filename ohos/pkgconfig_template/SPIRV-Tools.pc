@@ -1,0 +1,11 @@
+ohos_project_dir=ohos_project_directory_stub
+libdir=${ohos_project_dir}/third_party/mesa3d-new/ohos/SPIRV-Tools
+includedir=${ohos_project_dir}/third_party/mesa3d-new/ohos/SPIRV-Tools/include
+
+Name: SPIRV-Tools
+Description: Tools for SPIR-V
+Version: 2025.2.1
+URL: https://github.com/KhronosGroup/SPIRV-Tools
+
+Libs: -L${libdir} -lSPIRV-Tools-opt -lSPIRV-Tools -lSPIRV-Tools-link
+Cflags: -I${includedir}

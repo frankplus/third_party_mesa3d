@@ -127,7 +127,7 @@ with_any_opengl = with_opengl or with_gles1 or with_gles2
 # Only build shared_glapi if at least one OpenGL API is enabled
 with_shared_glapi = with_shared_glapi and with_any_opengl
 
-system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm'].contains(host_machine.system())
+system_has_kms_drm = ['openbsd', 'netbsd', 'freebsd', 'gnu/kfreebsd', 'dragonfly', 'linux', 'sunos', 'android', 'managarm', 'ohos'].contains(host_machine.system())
 
 gallium_drivers = get_option('gallium-drivers')
 if gallium_drivers.contains('auto')
@@ -425,7 +425,7 @@ with_platform_ohos = _platforms.contains('ohos')
 
 if with_platform_ohos
   pre_args += '-DVK_USE_PLATFORM_OHOS=1'
-  system_has_kms_drm = false
+  #system_has_kms_drm = false
 endif
 
 with_glx = get_option('glx')
@@ -489,7 +489,7 @@ with_egl = get_option('egl') \
 
 if with_egl
   _platforms += 'surfaceless'
-  if with_gbm and not with_platform_android
+  if with_gbm and not with_platform_android and not with_platform_ohos
     _platforms += 'drm'
   endif
 
@@ -943,6 +943,14 @@ if get_option('allow-kcmp') \
   pre_args += '-DALLOW_KCMP'
 endif
 
+if with_platform_ohos
+  pre_args += '-DHAVE_OHOS_PLATFORM'
+  dep_ohos = [
+    dependency('libsurface'),
+    dependency('libhilog'),
+  ]
+  c_args += '-I../ohos'
+endif
 # On Windows, a venv has no versioned aliased to 'python'.
 prog_python = find_program('python3', 'python', version : '>= 3.8')
 
@@ -1712,16 +1720,12 @@ foreach d : _libdrm_checks
 endforeach
 
 with_gallium_drisw_kms = false
-if system_has_kms_drm
+
   dep_libdrm = dependency(
     'libdrm', version : '>=' + _drm_ver,
     required : with_dri2 or with_dri or with_gbm
   )
-else
-  # We should prevent libdrm from being available when the target doesn't have it to avoid transitive
-  # dependencies (such as vk-runtime) linking to it
-  dep_libdrm = null_dep
-endif
+
 if dep_libdrm.found()
   pre_args += '-DHAVE_LIBDRM'
   if with_dri_platform == 'drm' and with_dri

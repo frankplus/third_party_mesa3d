@@ -473,6 +473,11 @@ _eglGetPlatformDisplayCommon(EGLenum platform, void *native_display,
       disp = _eglGetAndroidDisplay(native_display, attrib_list);
       break;
 #endif
+#ifdef HAVE_OHOS_PLATFORM
+    case EGL_PLATFORM_OHOS_KHR:
+        disp = _eglGetOHOSDisplay(native_display, attrib_list);
+        break;
+#endif
    case EGL_PLATFORM_DEVICE_EXT:
       disp = _eglGetDeviceDisplay(native_display, attrib_list);
       break;
@@ -1866,7 +1871,7 @@ _eglCreateImageCommon(_EGLDisplay *disp, EGLContext ctx, EGLenum target,
    RETURN_EGL_EVAL(disp, ret);
 }
 
-static EGLImage EGLAPIENTRY
+EGLAPI EGLImage EGLAPIENTRY
 eglCreateImageKHR(EGLDisplay dpy, EGLContext ctx, EGLenum target,
                   EGLClientBuffer buffer, const EGLint *attr_list)
 {
@@ -1920,7 +1925,7 @@ eglDestroyImage(EGLDisplay dpy, EGLImage image)
    return _eglDestroyImageCommon(disp, img);
 }
 
-static EGLBoolean EGLAPIENTRY
+EGLAPI EGLBoolean EGLAPIENTRY
 eglDestroyImageKHR(EGLDisplay dpy, EGLImage image)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -1993,7 +1998,7 @@ _eglCreateSync(_EGLDisplay *disp, EGLenum type, const EGLAttrib *attrib_list,
    RETURN_EGL_EVAL(disp, ret);
 }
 
-static EGLSync EGLAPIENTRY
+EGLAPI EGLSync EGLAPIENTRY
 eglCreateSyncKHR(EGLDisplay dpy, EGLenum type, const EGLint *int_list)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -2064,7 +2069,7 @@ eglDestroySync(EGLDisplay dpy, EGLSync sync)
    return _eglDestroySync(disp, s);
 }
 
-static EGLBoolean EGLAPIENTRY
+EGLAPI EGLBoolean EGLAPIENTRY
 eglDestroySyncKHR(EGLDisplay dpy, EGLSync sync)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);
@@ -2103,7 +2108,7 @@ eglClientWaitSync(EGLDisplay dpy, EGLSync sync, EGLint flags, EGLTime timeout)
    return _eglClientWaitSyncCommon(disp, s, flags, timeout);
 }
 
-static EGLint EGLAPIENTRY
+EGLAPI EGLint EGLAPIENTRY
 eglClientWaitSyncKHR(EGLDisplay dpy, EGLSync sync, EGLint flags,
                      EGLTime timeout)
 {
@@ -2207,7 +2212,7 @@ eglGetSyncAttrib(EGLDisplay dpy, EGLSync sync, EGLint attribute,
    return _eglGetSyncAttribCommon(disp, s, attribute, value);
 }
 
-static EGLBoolean EGLAPIENTRY
+EGLAPI EGLBoolean EGLAPIENTRY
 eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute,
                     EGLint *value)
 {
@@ -2235,7 +2240,7 @@ eglGetSyncAttribKHR(EGLDisplay dpy, EGLSync sync, EGLint attribute,
    return result;
 }
 
-static EGLint EGLAPIENTRY
+EGLAPI EGLint EGLAPIENTRY
 eglDupNativeFenceFDANDROID(EGLDisplay dpy, EGLSync sync)
 {
    _EGLDisplay *disp = _eglLockDisplay(dpy);

@@ -4,6 +4,6 @@ includedir=${ohos_project_dir}/third_party/libdrm
 
 Name: libdrm
 Description: Userspace interface to kernel DRM services
-Version: 2.5.109
+Version: 2.4.121
 Libs: -L${libdir} -ldrm
 Cflags: -I${includedir} -I${includedir}/include/drm/
