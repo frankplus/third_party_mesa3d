@@ -10,6 +10,7 @@
 #include "radv_debug.h"
 #include "radv_entrypoints.h"
 #include "radv_image.h"
+#include "radv_ohos.h"
 
 #include "sid.h"
 
@@ -1134,6 +1135,26 @@ get_external_image_format_properties(struct radv_physical_device *pdev,
 
       compat_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID;
       break;
+#if DETECT_OS_OHOS
+   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OHOS_NATIVE_BUFFER_BIT_OHOS:
+   case VK_EXTERNAL_MEMORY_HANDLE_TYPE_OH_NATIVE_BUFFER_BIT_OHOS:
+      if (!pdev->vk.supported_extensions.OHOS_external_memory)
+         break;
+
+      if (pImageFormatInfo->type != VK_IMAGE_TYPE_2D)
+         break;
+
+      format_properties->maxMipLevels = MIN2(1, format_properties->maxMipLevels);
+      format_properties->maxArrayLayers = MIN2(1, format_properties->maxArrayLayers);
+      format_properties->sampleCounts &= VK_SAMPLE_COUNT_1_BIT;
+
+      flags = VK_EXTERNAL_MEMORY_FEATURE_DEDICATED_ONLY_BIT |
+              VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
+
+      compat_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_OHOS_NATIVE_BUFFER_BIT_OHOS |
+                     VK_EXTERNAL_MEMORY_HANDLE_TYPE_OH_NATIVE_BUFFER_BIT_OHOS;
+      break;
+#endif
    case VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT:
       flags = VK_EXTERNAL_MEMORY_FEATURE_IMPORTABLE_BIT;
       compat_flags = VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT;
@@ -1159,11 +1180,15 @@ radv_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
    const VkPhysicalDeviceExternalImageFormatInfo *external_info = NULL;
    VkExternalImageFormatProperties *external_props = NULL;
    struct VkAndroidHardwareBufferUsageANDROID *android_usage = NULL;
+   VkNativeBufferUsageOHOS *ohos_usage = NULL;
    VkSamplerYcbcrConversionImageFormatProperties *ycbcr_props = NULL;
    VkTextureLODGatherFormatPropertiesAMD *texture_lod_props = NULL;
    VkImageCompressionPropertiesEXT *image_compression_props = NULL;
    VkResult result;
    VkFormat format = radv_select_android_external_format(base_info->pNext, base_info->format);
+#if DETECT_OS_OHOS
+   format = radv_select_ohos_external_format(base_info->pNext, format);
+#endif
 
    result = radv_get_image_format_properties(pdev, base_info, format, &base_props->imageFormatProperties);
    if (result != VK_SUCCESS)
@@ -1192,6 +1217,9 @@ radv_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
       case VK_STRUCTURE_TYPE_ANDROID_HARDWARE_BUFFER_USAGE_ANDROID:
          android_usage = (void *)s;
          break;
+      case VK_STRUCTURE_TYPE_NATIVE_BUFFER_USAGE_OHOS:
+         ohos_usage = (void *)s;
+         break;
       case VK_STRUCTURE_TYPE_TEXTURE_LOD_GATHER_FORMAT_PROPERTIES_AMD:
          texture_lod_props = (void *)s;
          break;
@@ -1207,6 +1235,14 @@ radv_GetPhysicalDeviceImageFormatProperties2(VkPhysicalDevice physicalDevice,
    if (android_usage && ahb_supported) {
       android_usage->androidHardwareBufferUsage = vk_image_usage_to_ahb_usage(base_info->flags, base_info->usage);
    }
+
+#if DETECT_OS_OHOS
+   if (ohos_usage && pdev->vk.supported_extensions.OHOS_external_memory) {
+      ohos_usage->OHOSNativeBufferUsage =
+         radv_ohos_native_buffer_usage_for_vk_image(base_info->flags,
+                                                   base_info->usage);
+   }
+#endif
 
    /* From the Vulkan 1.0.97 spec:
     *

@@ -14,8 +14,10 @@
 #include "vk_object.h"
 
 #include "radv_android.h"
+#include "util/detect_os.h"
 
 struct radv_device;
+struct OH_NativeBuffer;
 
 struct radv_device_memory {
    struct vk_object_base base;
@@ -30,6 +32,10 @@ struct radv_device_memory {
 
 #if RADV_SUPPORT_ANDROID_HARDWARE_BUFFER
    struct AHardwareBuffer *android_hardware_buffer;
+#endif
+
+#if DETECT_OS_OHOS
+   struct OH_NativeBuffer *ohos_native_buffer;
 #endif
 };
 

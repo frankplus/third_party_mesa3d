@@ -119,6 +119,8 @@ libradv_files = files(
   'radv_formats.h',
   'radv_image.c',
   'radv_image.h',
+  'radv_ohos.c',
+  'radv_ohos.h',
   'radv_image_view.c',
   'radv_image_view.h',
   'radv_instance.c',
@@ -216,6 +218,10 @@ endif
 
 if with_platform_android
   radv_deps += dep_android
+endif
+
+if with_platform_ohos
+  radv_deps += dep_ohos
 endif
 
 radv_build_id = get_option('radv-build-id')

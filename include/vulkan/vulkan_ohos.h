@@ -2,7 +2,7 @@
 #define VULKAN_OHOS_H_ 1
 
 /*
-** Copyright 2015-2022 The Khronos Group Inc.
+** Copyright 2015-2025 The Khronos Group Inc.
 **
 ** SPDX-License-Identifier: Apache-2.0
 */
@@ -41,85 +41,98 @@ VKAPI_ATTR VkResult VKAPI_CALL vkCreateSurfaceOHOS(
     VkSurfaceKHR*                               pSurface);
 #endif
 
-
 #define VK_OHOS_native_buffer 1
 struct OHBufferHandle;
 #define VK_OHOS_NATIVE_BUFFER_SPEC_VERSION 1
 #define VK_OHOS_NATIVE_BUFFER_EXTENSION_NAME "VK_OHOS_native_buffer"
 
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef enum VkSwapchainImageUsageFlagBitsOHOS {
     VK_SWAPCHAIN_IMAGE_USAGE_SHARED_BIT_OHOS = 0x00000001,
     VK_SWAPCHAIN_IMAGE_USAGE_FLAG_BITS_MAX_ENUM_OHOS = 0x7FFFFFFF
 } VkSwapchainImageUsageFlagBitsOHOS;
 typedef VkFlags VkSwapchainImageUsageFlagsOHOS;
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef struct VkNativeBufferOHOS {
     VkStructureType    sType;
     const void*        pNext;
     struct OHBufferHandle*      handle;
 } VkNativeBufferOHOS;
-
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef struct VkSwapchainImageCreateInfoOHOS {
     VkStructureType                   sType;
     const void*                       pNext;
     VkSwapchainImageUsageFlagsOHOS    usage;
 } VkSwapchainImageCreateInfoOHOS;
-
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef struct VkPhysicalDevicePresentationPropertiesOHOS {
     VkStructureType    sType;
-    const void*        pNext;
+    void*              pNext;
     VkBool32           sharedImage;
 } VkPhysicalDevicePresentationPropertiesOHOS;
 
 /**
- * @brief this type is deprecated, please use PFN_vkAcquireImageOHOS instead
- * @deprecated
- */
-typedef VkResult (VKAPI_PTR *PFN_vkSetNativeFenceFdOpenHarmony)(VkDevice device, int32_t nativeFenceFd, VkSemaphore semaphore, VkFence fence);
-
-/**
- * @brief this type is deprecated, please use PFN_vkQueueSignalReleaseImageOHOS instead
- * @deprecated
- */
-typedef VkResult (VKAPI_PTR *PFN_vkGetNativeFenceFdOpenHarmony)(VkQueue queue, uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, VkImage image, int32_t* pNativeFenceFd);
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef VkResult (VKAPI_PTR *PFN_vkGetSwapchainGrallocUsageOHOS)(VkDevice device, VkFormat format, VkImageUsageFlags imageUsage, uint64_t* grallocUsage);
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef VkResult (VKAPI_PTR *PFN_vkAcquireImageOHOS)(VkDevice device, VkImage image, int32_t nativeFenceFd, VkSemaphore semaphore, VkFence fence);
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 typedef VkResult (VKAPI_PTR *PFN_vkQueueSignalReleaseImageOHOS)(VkQueue queue, uint32_t waitSemaphoreCount, const VkSemaphore* pWaitSemaphores, VkImage image, int32_t* pNativeFenceFd);
 
 #ifndef VK_NO_PROTOTYPES
 /**
- * @brief this interface is deprecated, please use vkAcquireImageOHOS instead
- * @deprecated
- */
-VKAPI_ATTR VkResult VKAPI_CALL vkSetNativeFenceFdOpenHarmony(
-    VkDevice                                    device,
-    int32_t                                     nativeFenceFd,
-    VkSemaphore                                 semaphore,
-    VkFence                                     fence);
-
-/**
- * @brief this interface is deprecated, please use vkQueueSignalReleaseImageOHOS instead
- * @deprecated
- */
-VKAPI_ATTR VkResult VKAPI_CALL vkGetNativeFenceFdOpenHarmony(
-    VkQueue                                     queue,
-    uint32_t                                    waitSemaphoreCount,
-    const VkSemaphore*                          pWaitSemaphores,
-    VkImage                                     image,
-    int32_t*                                    pNativeFenceFd);
-
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 VKAPI_ATTR VkResult VKAPI_CALL vkGetSwapchainGrallocUsageOHOS(
     VkDevice                                    device,
     VkFormat                                    format,
     VkImageUsageFlags                           imageUsage,
     uint64_t*                                   grallocUsage);
-
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 VKAPI_ATTR VkResult VKAPI_CALL vkAcquireImageOHOS(
     VkDevice                                    device,
     VkImage                                     image,
     int32_t                                     nativeFenceFd,
     VkSemaphore                                 semaphore,
     VkFence                                     fence);
-
+/**
+* @brief move to vk_ohos_native_buffer.h
+* @since 10
+* @deprecated since 23
+*/
 VKAPI_ATTR VkResult VKAPI_CALL vkQueueSignalReleaseImageOHOS(
     VkQueue                                     queue,
     uint32_t                                    waitSemaphoreCount,
@@ -127,7 +140,6 @@ VKAPI_ATTR VkResult VKAPI_CALL vkQueueSignalReleaseImageOHOS(
     VkImage                                     image,
     int32_t*                                    pNativeFenceFd);
 #endif
-
 
 #define VK_OHOS_external_memory 1
 struct OH_NativeBuffer;

@@ -90,6 +90,10 @@ struct radv_queue {
 
    uint64_t last_shader_upload_seq;
    bool sqtt_present;
+
+#if DETECT_OS_OHOS
+   VkSemaphore ohos_release_semaphore;
+#endif
 };
 
 VK_DEFINE_HANDLE_CASTS(radv_queue, vk.base, VkQueue, VK_OBJECT_TYPE_QUEUE)

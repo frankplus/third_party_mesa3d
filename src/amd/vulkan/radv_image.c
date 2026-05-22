@@ -21,6 +21,7 @@
 #include "radv_entrypoints.h"
 #include "radv_formats.h"
 #include "radv_image_view.h"
+#include "radv_ohos.h"
 #include "radv_radeon_winsys.h"
 #include "radv_rmv.h"
 #include "radv_video.h"
@@ -1372,6 +1373,9 @@ radv_image_create(VkDevice _device, const struct radv_image_create_info *create_
    uint64_t modifier = DRM_FORMAT_MOD_INVALID;
    struct radv_image *image = NULL;
    VkFormat format = radv_select_android_external_format(pCreateInfo->pNext, pCreateInfo->format);
+#if DETECT_OS_OHOS
+   format = radv_select_ohos_external_format(pCreateInfo->pNext, format);
+#endif
    const struct VkImageDrmFormatModifierListCreateInfoEXT *mod_list =
       vk_find_struct_const(pCreateInfo->pNext, IMAGE_DRM_FORMAT_MODIFIER_LIST_CREATE_INFO_EXT);
    const struct VkImageDrmFormatModifierExplicitCreateInfoEXT *explicit_mod =
@@ -1704,6 +1708,13 @@ radv_CreateImage(VkDevice _device, const VkImageCreateInfo *pCreateInfo, const V
 
    if (gralloc_info)
       return radv_image_from_gralloc(_device, pCreateInfo, gralloc_info, pAllocator, pImage);
+#endif
+
+#if DETECT_OS_OHOS
+   const VkNativeBufferOHOS *native_buffer = vk_find_struct_const(pCreateInfo->pNext, NATIVE_BUFFER_OHOS);
+
+   if (native_buffer)
+      return radv_image_from_ohos_native_buffer(_device, pCreateInfo, native_buffer, pAllocator, pImage);
 #endif
 
 #ifdef RADV_USE_WSI_PLATFORM

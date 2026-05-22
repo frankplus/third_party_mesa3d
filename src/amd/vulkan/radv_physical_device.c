@@ -711,6 +711,10 @@ radv_physical_device_get_supported_extensions(const struct radv_physical_device 
       .ANDROID_external_memory_android_hardware_buffer = RADV_SUPPORT_ANDROID_HARDWARE_BUFFER,
       .ANDROID_native_buffer = true,
 #endif
+#if DETECT_OS_OHOS
+      .OHOS_native_buffer = true,
+      .OHOS_external_memory = true,
+#endif
       .GOOGLE_decorate_string = true,
       .GOOGLE_hlsl_functionality1 = true,
       .GOOGLE_user_type = true,

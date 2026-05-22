@@ -13,6 +13,7 @@
 #include "radv_cp_reg_shadowing.h"
 #include "radv_cs.h"
 #include "radv_debug.h"
+#include "radv_device.h"
 #include "radv_device_memory.h"
 #include "radv_image.h"
 #include "radv_printf.h"
@@ -1971,6 +1972,10 @@ radv_queue_init(struct radv_device *device, struct radv_queue *queue, int idx,
    if (result != VK_SUCCESS)
       return result;
 
+#if DETECT_OS_OHOS
+   queue->ohos_release_semaphore = VK_NULL_HANDLE;
+#endif
+
    queue->state.uses_shadow_regs = device->uses_shadow_regs && queue->state.qf == RADV_QUEUE_GENERAL;
    if (queue->state.uses_shadow_regs) {
       result = radv_create_shadow_regs_preamble(device, &queue->state);
@@ -2076,6 +2081,14 @@ radv_queue_finish(struct radv_queue *queue)
 
    if (queue->gang_sem_bo)
       radv_bo_destroy(device, &queue->vk.base, queue->gang_sem_bo);
+
+#if DETECT_OS_OHOS
+   if (queue->ohos_release_semaphore != VK_NULL_HANDLE) {
+      device->vk.dispatch_table.DestroySemaphore(radv_device_to_handle(device),
+                                                 queue->ohos_release_semaphore,
+                                                 NULL);
+   }
+#endif
 
    radv_queue_state_finish(&queue->state, device);
    vk_queue_finish(&queue->vk);

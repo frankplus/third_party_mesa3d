@@ -14,9 +14,14 @@
 #include "radv_debug.h"
 #include "radv_entrypoints.h"
 #include "radv_image.h"
+#include "radv_ohos.h"
 #include "radv_rmv.h"
 
 #include "vk_log.h"
+
+#if DETECT_OS_OHOS
+#include "native_buffer.h"
+#endif
 
 void
 radv_device_memory_init(struct radv_device_memory *mem, struct radv_device *device, struct radeon_winsys_bo *bo)
@@ -42,6 +47,11 @@ radv_free_memory(struct radv_device *device, const VkAllocationCallbacks *pAlloc
 #if RADV_SUPPORT_ANDROID_HARDWARE_BUFFER
    if (mem->android_hardware_buffer)
       AHardwareBuffer_release(mem->android_hardware_buffer);
+#endif
+
+#if DETECT_OS_OHOS
+   if (mem->ohos_native_buffer)
+      OH_NativeBuffer_Unreference(mem->ohos_native_buffer);
 #endif
 
    if (mem->bo) {
@@ -80,6 +90,10 @@ radv_alloc_memory(struct radv_device *device, const VkMemoryAllocateInfo *pAlloc
       vk_find_struct_const(pAllocateInfo->pNext, EXPORT_MEMORY_ALLOCATE_INFO);
    const struct VkImportAndroidHardwareBufferInfoANDROID *ahb_import_info =
       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_ANDROID_HARDWARE_BUFFER_INFO_ANDROID);
+#if DETECT_OS_OHOS
+   const VkImportNativeBufferInfoOHOS *ohos_import_info =
+      vk_find_struct_const(pAllocateInfo->pNext, IMPORT_NATIVE_BUFFER_INFO_OHOS);
+#endif
    const VkImportMemoryHostPointerInfoEXT *host_ptr_info =
       vk_find_struct_const(pAllocateInfo->pNext, IMPORT_MEMORY_HOST_POINTER_INFO_EXT);
    const struct VkMemoryAllocateFlagsInfo *flags_info =
@@ -89,6 +103,9 @@ radv_alloc_memory(struct radv_device *device, const VkMemoryAllocateInfo *pAlloc
       vk_find_struct_const(pAllocateInfo->pNext, WSI_MEMORY_ALLOCATE_INFO_MESA);
 
    if (pAllocateInfo->allocationSize == 0 && !ahb_import_info &&
+#if DETECT_OS_OHOS
+       !ohos_import_info &&
+#endif
        !(export_info &&
          (export_info->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID))) {
       /* Apparently, this is allowed */
@@ -141,10 +158,21 @@ radv_alloc_memory(struct radv_device *device, const VkMemoryAllocateInfo *pAlloc
    mem->android_hardware_buffer = NULL;
 #endif
 
+#if DETECT_OS_OHOS
+   mem->ohos_native_buffer = NULL;
+#endif
+
    if (ahb_import_info) {
       result = radv_import_ahb_memory(device, mem, priority, ahb_import_info);
       if (result != VK_SUCCESS)
          goto fail;
+#if DETECT_OS_OHOS
+   } else if (ohos_import_info) {
+      result = radv_import_ohos_native_buffer_memory(device, mem, priority,
+                                                     ohos_import_info);
+      if (result != VK_SUCCESS)
+         goto fail;
+#endif
    } else if (export_info &&
               (export_info->handleTypes & VK_EXTERNAL_MEMORY_HANDLE_TYPE_ANDROID_HARDWARE_BUFFER_BIT_ANDROID)) {
       result = radv_create_ahb_memory(device, mem, priority, pAllocateInfo);
