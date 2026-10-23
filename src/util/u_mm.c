@@ -29,8 +29,12 @@
 #include "util/u_mm.h"
 #include "util/macros.h"
 #include "util/detect_os.h"
-#if DETECT_OS_OHOS
+/* NEON copy only where NEON exists: OpenHarmony also builds for x86_64. */
+#if DETECT_OS_OHOS && (defined(__aarch64__) || defined(__ARM_NEON))
+#define U_MM_USE_NEON 1
 #include <arm_neon.h>
+#else
+#define U_MM_USE_NEON 0
 #endif
 
 void
@@ -304,7 +308,7 @@ u_mmDestroy(struct mem_block *heap)
 void
 memcpy_neon(void *dst, const void* src, size_t size)
 {
-#if DETECT_OS_OHOS
+#if U_MM_USE_NEON
    unsigned char* dst0 = (unsigned char*) dst;
    const unsigned char* src0 = (const unsigned char*) src;
    if (dst0 == NULL || src0 == NULL) {
