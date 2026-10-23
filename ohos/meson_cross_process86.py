@@ -24,6 +24,7 @@
 import sys
 import ntpath
 import os
+import re
 
 sysroot_stub = 'sysroot_stub'
 project_stub = 'project_stub'
@@ -266,6 +267,13 @@ def generate_pc_file(file_raw, project_dir, product_name, skia_version):
                 else:
                     raw_content = raw_content.replace("skia_folder_stub", "skia")
                     raw_content = raw_content.replace("expat_lib_stub", "expat")
+            if shortfilename == "libqos.pc":
+                # The template points at the arm64 SDK sysroot; link the
+                # product's own x86_64 libqos instead.
+                raw_content = re.sub(r"^libdir=.*$",
+                                     "libdir=${ohos_project_dir}/out/" + product_name +
+                                     "/resourceschedule/qos_manager",
+                                     raw_content, flags=re.M)
             pc_file.write(raw_content)
     print("generate_pc_file")
 
