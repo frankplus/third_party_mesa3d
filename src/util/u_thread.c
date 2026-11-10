@@ -62,6 +62,16 @@ int u_thread_create(thrd_t *thrd, int (*routine)(void *), void *param)
     * that tracking mechanism.
     */
    sigdelset(&new_set, SIGSEGV);
+#if DETECT_OS_OHOS
+   /* OpenHarmony's musl reserves SIGRTMIN+0..+10 for process-wide services:
+    * faultloggerd's stack dump (SIGDUMP == SIGRTMIN), stack sampling,
+    * malloc hooks, fd tracking. They are sent to every thread of the process
+    * and the requester waits for each one, so a Mesa worker thread (llvmpipe,
+    * util_queue) that blocks them stalls the dump of the whole process.
+    */
+   for (int sig = SIGRTMIN; sig <= SIGRTMIN + 10; sig++)
+      sigdelset(&new_set, sig);
+#endif
    pthread_sigmask(SIG_BLOCK, &new_set, &saved_set);
    ret = thrd_create(thrd, routine, param);
    pthread_sigmask(SIG_SETMASK, &saved_set, NULL);
