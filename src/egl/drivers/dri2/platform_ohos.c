@@ -38,6 +38,7 @@
 #include <fcntl.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <string.h>
 #include <xf86drm.h>
 #include <drm-uapi/drm_fourcc.h>
 #include <sys/types.h>
@@ -1108,6 +1109,21 @@ ohos_open_device(_EGLDisplay *disp, bool swrast)
          _eglLog(_EGL_WARNING, "%s() Failed to open DRM device %s", __func__,
                  device->nodes[node_type]);
          goto next;
+      }
+
+      /* The kernel makes the first opener of a primary node its DRM master,
+       * and the display composer (composer_host), which modesets, can then
+       * never become master: no display. Rendering here (kms_swrast) needs
+       * no master, so give it up. This happens whenever render_service
+       * initialises EGL before the composer opens the card.
+       */
+      if (node_type == DRM_NODE_PRIMARY && drmIsMaster(dri2_dpy->fd_render_gpu)) {
+         if (drmDropMaster(dri2_dpy->fd_render_gpu) == 0)
+            _eglLog(_EGL_WARNING, "%s() dropped DRM master on %s for the composer",
+                    __func__, device->nodes[node_type]);
+         else
+            _eglLog(_EGL_WARNING, "%s() could not drop DRM master on %s: %s",
+                    __func__, device->nodes[node_type], strerror(errno));
       }
 
       /* If a vendor is explicitly provided, we use only that.
