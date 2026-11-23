@@ -699,9 +699,10 @@ ohos_query_surface(_EGLDisplay *disp, _EGLSurface *surf, EGLint attribute,
       }
       break;
    case EGL_HEIGHT:
+      /* GET_BUFFER_GEOMETRY writes (int32_t *height, int32_t *width). */
       if (dri2_surf->base.Type == EGL_WINDOW_BIT && dri2_surf->window) {
          NativeWindowHandleOpt(dri2_surf->window,
-                             GET_BUFFER_GEOMETRY, &dummy, value);
+                             GET_BUFFER_GEOMETRY, value, &dummy);
          return EGL_TRUE;
       }
       break;
